@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VDC 360° · Cajas Menudo Congelado</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body{margin:0;font-family:sans-serif;background:#f6f7f8;color:#111}
+    header{background:#0a7a3b;color:#fff;padding:16px}
+    main{max-width:1100px;margin:auto;padding:16px;display:grid;gap:16px}
+    .card{background:#fff;padding:16px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
+    label{display:block;font-size:13px;margin-top:8px}
+    input,select,textarea{width:100%;padding:8px;margin-top:4px;border:1px solid #ccc;border-radius:6px}
+    button{margin-top:10px;padding:10px 14px;border:none;border-radius:6px;cursor:pointer;font-weight:bold}
+    button.primary{background:#0a7a3b;color:#fff}
+    button.secondary{background:#111;color:#fff}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{border-bottom:1px solid #eee;padding:8px;text-align:left}
+    .mono{font-family:monospace}
+    .warn{color:#d97706;font-weight:bold}
+    .bad{color:#b91c1c;font-weight:bold}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>VDC 360° · Control de Cajas de Menudo Congelado</h1>
+    <small id="envInfo"></small>
+  </header>
+
+  <main>
+    <!-- Entrada -->
+    <div class="card">
+      <h2>Entrada de Cajas</h2>
+      <label>Marca</label><select id="ent_marca"></select>
+      <label>Cantidad</label><input id="ent_cant" type="number" />
+      <label>Usuario</label><input id="ent_user" />
+      <label>Observaciones</label><input id="ent_obs" />
+      <button class="primary" onclick="agregarEntrada()">Guardar Entrada</button>
+      <div id="ent_msg"></div>
+    </div>
+
+    <!-- Salida -->
+    <div class="card">
+      <h2>Salida hacia Mostrador</h2>
+      <label>Marca</label><select id="sal_marca"></select>
+      <label>Cajas enviadas</label><input id="sal_cant" type="number" />
+      <label>Usuario autoriza</label><input id="sal_user" />
+      <button class="primary" onclick="agregarSalida()">Guardar Salida</button>
+      <div id="sal_msg"></div>
+    </div>
+
+    <!-- Devolución -->
+    <div class="card">
+      <h2>Devolución desde Mostrador</h2>
+      <label>Marca</label><select id="dev_marca"></select>
+      <label>Cajas devueltas</label><input id="dev_cant" type="number" />
+      <label>Usuario</label><input id="dev_user" />
+      <button class="primary" onclick="agregarDevolucion()">Guardar Devolución</button>
+      <div id="dev_msg"></div>
+    </div>
+
+    <!-- Conteo -->
+    <div class="card">
+      <h2>Conteo Diario (4:30 p.m.)</h2>
+      <label>Marca</label><select id="con_marca"></select>
+      <label>Cantidad reportada</label><input id="con_cant" type="number" />
+      <label>Usuario</label><input id="con_user" />
+      <button class="primary" onclick="registrarConteo()">Guardar Conteo</button>
+      <div id="con_msg"></div>
+    </div>
+
+    <!-- Tablero -->
+    <div class="card">
+      <h2>Tablero de Inventario</h2>
+      <button class="secondary" onclick="cargarTablero()">Actualizar Tablero</button>
+      <table id="tbl_total"><thead><tr><th>Marca</th><th>Stock Teórico</th></tr></thead><tbody></tbody></table>
+      <table id="tbl_conteo"><thead><tr><th>Marca</th><th>Conteo</th><th>Diferencia</th></tr></thead><tbody></tbody></table>
+    </div>
+
+    <!-- Reporte -->
+    <div class="card">
+      <h2>Reporte Diario</h2>
+      <button class="primary" onclick="generarReporte()">Generar Reporte</button>
+      <button class="secondary" onclick="enviarWA('+524621872594')">Enviar a Marciano</button>
+      <button class="secondary" onclick="enviarWA('+524621391119')">Enviar a Papá</button>
+      <button class="secondary" onclick="enviarWA('+524621521152')">Enviar a Fabiola</button>
+      <textarea id="reporte" rows="8"></textarea>
+    </div>
+  </main>
+
+<script>
+const SUPABASE_URL = "https://bjebybdqcqscouxlinfd.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqZWJ5YmRxY3FzY291eGxpbmZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzMjQ3MTksImV4cCI6MjA3MTkwMDcxOX0.mQgWtiYEyJTiF04pdcLv63SqPNrU1Iehws0vKqr82O0";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const MARCAS = ["National","Canadian","Excel","Washington","El Americano","Vísceras del Centro"];
+
+function cargarMarcas(){
+  ["ent_marca","sal_marca","dev_marca","con_marca"].forEach(id=>{
+    const sel=document.getElementById(id); sel.innerHTML="";
+    MARCAS.forEach(m=>{let o=document.createElement("option");o.value=m;o.textContent=m;sel.appendChild(o);});
+  });
+}
+cargarMarcas();
+
+async function agregarEntrada(){
+  const payload={marca:ent_marca.value,cantidad_cajas:+ent_cant.value,usuario_registro:ent_user.value||"N/D",observaciones:ent_obs.value||null};
+  const {error}=await sb.from("cajas_menudo_entrada").insert(payload);
+  ent_msg.textContent= error?("Error: "+error.message):"✔ Entrada registrada";
+  if(!error){ ent_cant.value=""; ent_obs.value=""; cargarTablero(); }
+}
+async function agregarSalida(){
+  const payload={marca:sal_marca.value,cantidad_salida:+sal_cant.value,usuario_autoriza:sal_user.value||"N/D",destino:"Mostrador"};
+  const {error}=await sb.from("cajas_menudo_salida").insert(payload);
+  sal_msg.textContent= error?("Error: "+error.message):"✔ Salida registrada";
+  if(!error){ sal_cant.value=""; cargarTablero(); }
+}
+async function agregarDevolucion(){
+  const payload={marca:dev_marca.value,cantidad_devolucion:+dev_cant.value,usuario_registro:dev_user.value||"N/D"};
+  const {error}=await sb.from("cajas_menudo_devolucion").insert(payload);
+  dev_msg.textContent= error?("Error: "+error.message):"✔ Devolución registrada";
+  if(!error){ dev_cant.value=""; cargarTablero(); }
+}
+async function registrarConteo(){
+  const payload={marca:con_marca.value,cantidad_reportada:+con_cant.value,usuario_conteo:con_user.value||"N/D"};
+  const {error}=await sb.from("cajas_menudo_conteo_diario").insert(payload);
+  con_msg.textContent= error?("Error: "+error.message):"✔ Conteo registrado";
+  if(!error){ con_cant.value=""; cargarTablero(); }
+}
+
+async function cargarTablero(){
+  const {data:stock}=await sb.from("v_stock_teorico").select("*");
+  document.querySelector("#tbl_total tbody").innerHTML=(stock||[]).map(r=>`<tr><td>${r.marca}</td><td>${r.stock_teorico}</td></tr>`).join("");
+
+  const {data:conteo}=await sb.from("v_conteo_hoy").select("*");
+  const map=new Map((stock||[]).map(r=>[r.marca,r.stock_teorico]));
+  document.querySelector("#tbl_conteo tbody").innerHTML=(conteo||[]).map(r=>{
+    const dif=(r.cantidad_reportada||0)-(map.get(r.marca)||0);
+    const cls=dif===0?"":"warn";
+    return `<tr><td>${r.marca}</td><td>${r.cantidad_reportada}</td><td class='${cls}'>${dif}</td></tr>`;
+  }).join("");
+}
+
+async function generarReporte(){
+  const {data:stock}=await sb.from("v_stock_teorico").select("*");
+  const {data:conteo}=await sb.from("v_conteo_hoy").select("*");
+  const map=new Map((conteo||[]).map(r=>[r.marca,r.cantidad_reportada]));
+  let txt=`🧊 REPORTE INVENTARIO MENUDO CONGELADO\n📅 ${new Date().toLocaleString()}\n\n`;
+  (stock||[]).forEach(r=>{
+    txt+=`• ${r.marca}: ${r.stock_teorico} cajas`;
+    if(map.has(r.marca)) txt+=` · Conteo: ${map.get(r.marca)} · Dif: ${map.get(r.marca)-r.stock_teorico}`;
+    txt+=`\n`;
+  });
+  document.getElementById("reporte").value=txt; return txt;
+}
+function enviarWA(numero){
+  const msg=document.getElementById("reporte").value.trim();
+  if(!msg){ alert("Primero genera el reporte"); return; }
+  window.open(`https://wa.me/${numero.replace(/[^0-9]/g,'')}?text=${encodeURIComponent(msg)}`,"_blank");
+}
+
+document.getElementById("envInfo").textContent = `Zona horaria: ${Intl.DateTimeFormat().resolvedOptions().timeZone} · ${new Date().toLocaleString()}`;
+cargarTablero();
+</script>
+</body>
+</html>
