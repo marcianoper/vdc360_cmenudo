@@ -1,166 +1,398 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
+  <title>VDC360° – Cajas Menudo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>VDC 360° · Cajas Menudo Congelado</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    body{margin:0;font-family:sans-serif;background:#f6f7f8;color:#111}
-    header{background:#0a7a3b;color:#fff;padding:16px}
-    main{max-width:1100px;margin:auto;padding:16px;display:grid;gap:16px}
-    .card{background:#fff;padding:16px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
-    label{display:block;font-size:13px;margin-top:8px}
-    input,select,textarea{width:100%;padding:8px;margin-top:4px;border:1px solid #ccc;border-radius:6px}
-    button{margin-top:10px;padding:10px 14px;border:none;border-radius:6px;cursor:pointer;font-weight:bold}
-    button.primary{background:#0a7a3b;color:#fff}
-    button.secondary{background:#111;color:#fff}
+    :root{--ink:#111;--brand:#0a7a3b;--muted:#6b7280;--bg:#f6f7f8;--card:#fff}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto}
+    header{background:var(--brand);color:#fff;padding:14px 18px}
+    header h1{margin:0;font-size:18px}
+    main{max-width:1100px;margin:0 auto;padding:16px;display:grid;gap:16px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .card{background:var(--card);border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);padding:16px}
+    h2{margin:0 0 10px 0;font-size:18px}
+    label{display:block;margin-top:10px;font-size:14px;color:#111}
+    input,select,button,textarea{
+      width:100%;padding:10px;margin-top:6px;font-size:14px;border:1px solid #e5e7eb;border-radius:8px;background:#fff
+    }
+    .row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    .btn{cursor:pointer}
+    .btn-primary{background:var(--brand);color:#fff;border:none}
+    .btn-muted{background:#111;color:#fff;border:none}
+    .btn-ghost{background:#fff;border:1px solid #e5e7eb;color:#111}
+    .muted{color:var(--muted);font-size:13px}
     table{width:100%;border-collapse:collapse;margin-top:10px}
-    th,td{border-bottom:1px solid #eee;padding:8px;text-align:left}
-    .mono{font-family:monospace}
-    .warn{color:#d97706;font-weight:bold}
-    .bad{color:#b91c1c;font-weight:bold}
+    th,td{padding:10px;border-bottom:1px solid #eef0f2;text-align:left;font-size:14px}
+    th{background:#fafafa}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#eef7f0;color:#0a7a3b;font-size:12px}
+    .flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .right{margin-left:auto}
+    .danger{color:#b91c1c}
+    .ok{color:#166534}
+    .center{text-align:center}
+    .mini{font-size:12px}
+    .sep{height:1px;background:#eee;margin:10px 0}
   </style>
 </head>
 <body>
-  <header>
-    <h1>VDC 360° · Control de Cajas de Menudo Congelado Matrix 1</h1>
-    <small id="envInfo"></small>
-  </header>
+<header>
+  <h1>VDC360° · Cajas de Menudo (Entradas + Cierre EOD)</h1>
+</header>
 
-  <main>
-    <!-- Entrada -->
+<main>
+
+  <!-- CONTROLES SUPERIORES -->
+  <div class="card">
+    <div class="flex">
+      <div class="flex" style="gap:6px">
+        <label for="fechaTrabajo" class="muted">Fecha de trabajo</label>
+        <input id="fechaTrabajo" type="date" />
+      </div>
+      <span class="right muted">SI = CF día anterior · E = entradas (COUNT) · CF = conteo final</span>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- ENTRADAS -->
     <div class="card">
-      <h2>Entrada de Cajas</h2>
-      <label>Marca</label><select id="ent_marca"></select>
-      <label>Cantidad</label><input id="ent_cant" type="number" />
-      <label>Usuario</label><input id="ent_user" />
-      <label>Observaciones</label><input id="ent_obs" />
-      <button class="primary" onclick="agregarEntrada()">Guardar Entrada</button>
-      <div id="ent_msg"></div>
+      <h2>📦 Registrar Entrada</h2>
+      <div class="row-2">
+        <div>
+          <label>Marca</label>
+          <select id="entMarca"></select>
+        </div>
+        <div>
+          <label>Cantidad de cajas (filas a insertar)</label>
+          <input id="entCantidad" type="number" min="1" step="1" value="1" />
+        </div>
+      </div>
+      <div class="row-3">
+        <div>
+          <label>Proveedor</label>
+          <input id="entProveedor" placeholder="(opcional)" />
+        </div>
+        <div>
+          <label>Lote / Ref</label>
+          <input id="entLote" placeholder="(opcional)" />
+        </div>
+        <div>
+          <label>Operador</label>
+          <input id="entOperador" placeholder="(opcional)" />
+        </div>
+      </div>
+      <div class="flex" style="margin-top:12px">
+        <button class="btn btn-primary" id="btnGuardarEntrada">Guardar Entrada</button>
+        <button class="btn btn-ghost" id="btnWAEntrada">WhatsApp Entrada</button>
+        <span class="muted right" id="entStatus">—</span>
+      </div>
+      <p class="mini muted">Nota: en tu tabla <b>cajas_menudo_entrada</b> cada fila equivale a <b>1 caja</b>. Aquí, si capturas “10”, insertamos 10 filas en una sola operación.</p>
     </div>
 
-    <!-- Salida -->
+    <!-- CIERRE / CONTEO -->
     <div class="card">
-      <h2>Salida hacia Mostrador</h2>
-      <label>Marca</label><select id="sal_marca"></select>
-      <label>Cajas enviadas</label><input id="sal_cant" type="number" />
-      <label>Usuario autoriza</label><input id="sal_user" />
-      <button class="primary" onclick="agregarSalida()">Guardar Salida</button>
-      <div id="sal_msg"></div>
-    </div>
+      <h2>🧮 Cierre Diario (Conteo Final por marca)</h2>
+      <div class="row-2">
+        <div>
+          <label>Encargado del conteo</label>
+          <input id="cfEncargado" placeholder="Nombre" />
+        </div>
+        <div>
+          <label>Fecha del conteo</label>
+          <input id="cfFecha" type="date" />
+        </div>
+      </div>
 
-    <!-- Devolución -->
-    <div class="card">
-      <h2>Devolución desde Mostrador</h2>
-      <label>Marca</label><select id="dev_marca"></select>
-      <label>Cajas devueltas</label><input id="dev_cant" type="number" />
-      <label>Usuario</label><input id="dev_user" />
-      <button class="primary" onclick="agregarDevolucion()">Guardar Devolución</button>
-      <div id="dev_msg"></div>
-    </div>
+      <table id="cfTabla">
+        <thead>
+          <tr>
+            <th>Marca</th>
+            <th class="center">CF (cajas)</th>
+          </tr>
+        </thead>
+        <tbody><!-- filas dinámicas --></tbody>
+      </table>
 
-    <!-- Conteo -->
-    <div class="card">
-      <h2>Conteo Diario (4:30 p.m.)</h2>
-      <label>Marca</label><select id="con_marca"></select>
-      <label>Cantidad reportada</label><input id="con_cant" type="number" />
-      <label>Usuario</label><input id="con_user" />
-      <button class="primary" onclick="registrarConteo()">Guardar Conteo</button>
-      <div id="con_msg"></div>
+      <div class="flex" style="margin-top:12px">
+        <button class="btn btn-primary" id="btnGuardarCF">Guardar Conteo</button>
+        <button class="btn btn-ghost" id="btnWAResumen">WhatsApp Resumen Diario</button>
+        <span class="muted right" id="cfStatus">—</span>
+      </div>
     </div>
+  </div>
 
-    <!-- Tablero -->
-    <div class="card">
-      <h2>Tablero de Inventario</h2>
-      <button class="secondary" onclick="cargarTablero()">Actualizar Tablero</button>
-      <table id="tbl_total"><thead><tr><th>Marca</th><th>Stock Teórico</th></tr></thead><tbody></tbody></table>
-      <table id="tbl_conteo"><thead><tr><th>Marca</th><th>Conteo</th><th>Diferencia</th></tr></thead><tbody></tbody></table>
+  <!-- TABLEROS -->
+  <div class="card">
+    <div class="flex">
+      <h2>📊 Resumen Diario por Marca</h2>
+      <button class="btn btn-muted right" id="btnActualizarResumen">Actualizar</button>
     </div>
-
-    <!-- Reporte -->
-    <div class="card">
-      <h2>Reporte Diario</h2>
-      <button class="primary" onclick="generarReporte()">Generar Reporte</button>
-      <button class="secondary" onclick="enviarWA('numero')">Enviar Reporte</button>
-     
-      <textarea id="reporte" rows="8"></textarea>
+    <table id="resumenTabla">
+      <thead>
+        <tr>
+          <th>Marca</th>
+          <th>SI</th>
+          <th>E</th>
+          <th>CF</th>
+          <th>S = SI+E–CF</th>
+        </tr>
+      </thead>
+      <tbody><!-- dinámico --></tbody>
+    </table>
+    <div class="sep"></div>
+    <div class="flex">
+      <div id="totalesBox" class="pill">Totales — SI: 0 · E: 0 · CF: 0 · S: 0</div>
+      <span class="right muted" id="alertasBox">Alertas: —</span>
     </div>
-  </main>
+  </div>
 
+</main>
+
+<!-- Supabase JS -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-const SUPABASE_URL = "https://bjebybdqcqscouxlinfd.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqZWJ5YmRxY3FzY291eGxpbmZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzMjQ3MTksImV4cCI6MjA3MTkwMDcxOX0.mQgWtiYEyJTiF04pdcLv63SqPNrU1Iehws0vKqr82O0";
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+/* =========================
+   CONFIG
+========================= */
+const SUPABASE_URL = "https://bjebybdqcqscouxlinfd.supabase.co";         // <- CAMBIAR
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqZWJ5YmRxY3FzY291eGxpbmZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzMjQ3MTksImV4cCI6MjA3MTkwMDcxOX0.mQgWtiYEyJTiF04pdcLv63SqPNrU1Iehws0vKqr82O0";                           // <- CAMBIAR
+const WHATS_NUMBER = "NUMERO"; // destino WhatsApp (puede ser otro)
 
-const MARCAS = ["National","Canadian","Excel","Washington","Caja Lengua","Caja Vísceras del Centro"];
+/* =========================
+   CLIENT
+========================= */
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-function cargarMarcas(){
-  ["ent_marca","sal_marca","dev_marca","con_marca"].forEach(id=>{
-    const sel=document.getElementById(id); sel.innerHTML="";
-    MARCAS.forEach(m=>{let o=document.createElement("option");o.value=m;o.textContent=m;sel.appendChild(o);});
-  });
-}
-cargarMarcas();
+/* =========================
+   HELPERS
+========================= */
+const $ = (sel) => document.querySelector(sel);
+function formatDateISO(d){ const x = new Date(d); const tz=x.getTimezoneOffset()*60000; return new Date(x - tz).toISOString().slice(0,10); }
+function todayISO(){ return formatDateISO(new Date()); }
+function toast(el, msg){ el.textContent = msg; setTimeout(()=>{el.textContent="—"}, 3000); }
+function openWA(text){ const url=`https://wa.me/${WHATS_NUMBER}?text=${encodeURIComponent(text)}`; window.open(url, "_blank"); }
 
-async function agregarEntrada(){
-  const payload={marca:ent_marca.value,cantidad_cajas:+ent_cant.value,usuario_registro:ent_user.value||"N/D",observaciones:ent_obs.value||null};
-  const {error}=await sb.from("cajas_menudo_entrada").insert(payload);
-  ent_msg.textContent= error?("Error: "+error.message):"✔ Entrada registrada";
-  if(!error){ ent_cant.value=""; ent_obs.value=""; cargarTablero(); }
-}
-async function agregarSalida(){
-  const payload={marca:sal_marca.value,cantidad_salida:+sal_cant.value,usuario_autoriza:sal_user.value||"N/D",destino:"Mostrador"};
-  const {error}=await sb.from("cajas_menudo_salida").insert(payload);
-  sal_msg.textContent= error?("Error: "+error.message):"✔ Salida registrada";
-  if(!error){ sal_cant.value=""; cargarTablero(); }
-}
-async function agregarDevolucion(){
-  const payload={marca:dev_marca.value,cantidad_devolucion:+dev_cant.value,usuario_registro:dev_user.value||"N/D"};
-  const {error}=await sb.from("cajas_menudo_devolucion").insert(payload);
-  dev_msg.textContent= error?("Error: "+error.message):"✔ Devolución registrada";
-  if(!error){ dev_cant.value=""; cargarTablero(); }
-}
-async function registrarConteo(){
-  const payload={marca:con_marca.value,cantidad_reportada:+con_cant.value,usuario_conteo:con_user.value||"N/D"};
-  const {error}=await sb.from("cajas_menudo_conteo_diario").insert(payload);
-  con_msg.textContent= error?("Error: "+error.message):"✔ Conteo registrado";
-  if(!error){ con_cant.value=""; cargarTablero(); }
-}
+/* =========================
+   INIT UI
+========================= */
+const fechaTrabajo = $("#fechaTrabajo");
+const entMarca = $("#entMarca");
+const entCantidad = $("#entCantidad");
+const entProveedor = $("#entProveedor");
+const entLote = $("#entLote");
+const entOperador = $("#entOperador");
+const entStatus = $("#entStatus");
 
-async function cargarTablero(){
-  const {data:stock}=await sb.from("v_stock_teorico").select("*");
-  document.querySelector("#tbl_total tbody").innerHTML=(stock||[]).map(r=>`<tr><td>${r.marca}</td><td>${r.stock_teorico}</td></tr>`).join("");
+const cfFecha = $("#cfFecha");
+const cfEncargado = $("#cfEncargado");
+const cfTablaBody = $("#cfTabla tbody");
+const cfStatus = $("#cfStatus");
 
-  const {data:conteo}=await sb.from("v_conteo_hoy").select("*");
-  const map=new Map((stock||[]).map(r=>[r.marca,r.stock_teorico]));
-  document.querySelector("#tbl_conteo tbody").innerHTML=(conteo||[]).map(r=>{
-    const dif=(r.cantidad_reportada||0)-(map.get(r.marca)||0);
-    const cls=dif===0?"":"warn";
-    return `<tr><td>${r.marca}</td><td>${r.cantidad_reportada}</td><td class='${cls}'>${dif}</td></tr>`;
-  }).join("");
-}
+const resumenTablaBody = $("#resumenTabla tbody");
+const totalesBox = $("#totalesBox");
+const alertasBox = $("#alertasBox");
 
-async function generarReporte(){
-  const {data:stock}=await sb.from("v_stock_teorico").select("*");
-  const {data:conteo}=await sb.from("v_conteo_hoy").select("*");
-  const map=new Map((conteo||[]).map(r=>[r.marca,r.cantidad_reportada]));
-  let txt=`🧊 REPORTE INVENTARIO MENUDO CONGELADO\n📅 ${new Date().toLocaleString()}\n\n`;
-  (stock||[]).forEach(r=>{
-    txt+=`• ${r.marca}: ${r.stock_teorico} cajas`;
-    if(map.has(r.marca)) txt+=` · Conteo: ${map.get(r.marca)} · Dif: ${map.get(r.marca)-r.stock_teorico}`;
-    txt+=`\n`;
-  });
-  document.getElementById("reporte").value=txt; return txt;
-}
-function enviarWA(numero){
-  const msg=document.getElementById("reporte").value.trim();
-  if(!msg){ alert("Primero genera el reporte"); return; }
-  window.open(`https://wa.me/${numero.replace(/[^0-9]/g,'')}?text=${encodeURIComponent(msg)}`,"_blank");
+fechaTrabajo.value = todayISO();
+cfFecha.value = todayISO();
+
+/* =========================
+   CARGAR MARCAS ACTIVAS
+========================= */
+async function loadMarcas(){
+  const { data, error } = await supabase
+    .from('marcas_menudo')
+    .select('nombre')
+    .eq('activa', true)
+    .order('nombre', { ascending: true });
+  if(error){ console.error(error); return; }
+
+  // Select Entradas
+  entMarca.innerHTML = data.map(m=>`<option value="${m.nombre}">${m.nombre}</option>`).join('');
+
+  // Tabla Conteo
+  cfTablaBody.innerHTML = data.map(m=>{
+    return `<tr>
+      <td>${m.nombre}</td>
+      <td class="center">
+        <input type="number" min="0" step="1" class="cf-input" data-marca="${m.nombre}" placeholder="0" />
+      </td>
+    </tr>`;
+  }).join('');
 }
 
-document.getElementById("envInfo").textContent = `Zona horaria: ${Intl.DateTimeFormat().resolvedOptions().timeZone} · ${new Date().toLocaleString()}`;
-cargarTablero();
+/* =========================
+   ENTRADAS: INSERT MASIVO
+========================= */
+async function guardarEntrada(){
+  const marca = entMarca.value;
+  const cantidad = Math.max(1, parseInt(entCantidad.value||"1",10));
+  const proveedor = entProveedor.value || null;
+  const lote = entLote.value || null;
+  const operador = entOperador.value || null;
+  const f = fechaTrabajo.value || todayISO();
+
+  // Opción A: 1 fila = 1 caja → insertamos N filas
+  const rows = Array.from({length:cantidad}).map(()=>({
+    marca, proveedor, lote, operador, fecha_entrada: f
+  }));
+
+  const { error } = await supabase.from('cajas_menudo_entrada').insert(rows);
+  if(error){ console.error(error); toast(entStatus, "❌ Error guardando entrada"); return; }
+  toast(entStatus, `✅ Guardadas ${cantidad} cajas de ${marca}`);
+}
+
+function waEntrada(){
+  const marca = entMarca.value;
+  const cantidad = Math.max(1, parseInt(entCantidad.value||"1",10));
+  const proveedor = entProveedor.value || 'N/D';
+  const lote = entLote.value || 'N/D';
+  const operador = entOperador.value || 'N/D';
+  const f = fechaTrabajo.value || todayISO();
+
+  const texto = [
+    "📦 ENTRADA REGISTRADA",
+    `Marca: ${marca}`,
+    `Proveedor: ${proveedor}`,
+    `Cantidad: ${cantidad} cajas`,
+    `Lote/Ref: ${lote}`,
+    `Fecha: ${f}`,
+    `Operador: ${operador}`
+  ].join('\n');
+  openWA(texto);
+}
+
+/* =========================
+   CIERRE: GUARDAR CF
+========================= */
+async function guardarCF(){
+  const f = cfFecha.value || todayISO();
+  const encargado = cfEncargado.value || null;
+
+  const inputs = Array.from(document.querySelectorAll(".cf-input"));
+  const rows = inputs
+    .map(i => ({ marca:i.dataset.marca, cantidad_reportada: parseInt(i.value||"0",10), fecha_conteo:f, usuario_conteo:encargado }))
+    .filter(r => Number.isFinite(r.cantidad_reportada) && r.cantidad_reportada>=0);
+
+  if(rows.length===0){ toast(cfStatus, "⚠️ Nada que guardar"); return; }
+
+  const { error } = await supabase.from('cajas_menudo_conteo_diario').insert(rows);
+  if(error){ console.error(error); toast(cfStatus, "❌ Error guardando conteo"); return; }
+
+  toast(cfStatus, "✅ Conteo guardado");
+}
+
+/* =========================
+   RESUMEN: LEER VISTAS
+========================= */
+async function actualizarResumen(){
+  const f = fechaTrabajo.value || todayISO();
+
+  // Por marca
+  const { data: marcas, error: e1 } = await supabase
+    .from('v_menudo_resumen_diario')
+    .select('*')
+    .eq('fecha', f)
+    .order('marca', { ascending: true });
+  if(e1){ console.error(e1); return; }
+
+  resumenTablaBody.innerHTML = (marcas||[]).map(r=>{
+    const klass = (r.si + r.e - r.cf) < 0 ? 'danger' : 'ok';
+    return `<tr>
+      <td>${r.marca}</td>
+      <td>${r.si}</td>
+      <td>${r.e}</td>
+      <td>${r.cf}</td>
+      <td class="${klass}">${r.s}</td>
+    </tr>`;
+  }).join('');
+
+  // Totales
+  const { data: tots, error: e2 } = await supabase
+    .from('v_menudo_resumen_totales')
+    .select('*')
+    .eq('fecha', f)
+    .single();
+  if(e2 && e2.code!=='PGRST116'){ console.error(e2); } // PGRST116 = no rows
+
+  const t = tots || { si_total:0, e_total:0, cf_total:0, s_total:0 };
+  totalesBox.textContent = `Totales — SI: ${t.si_total||0} · E: ${t.e_total||0} · CF: ${t.cf_total||0} · S: ${t.s_total||0}`;
+
+  // Alertas
+  const { data: al, error: e3 } = await supabase
+    .from('v_menudo_alertas')
+    .select('*')
+    .eq('fecha', f);
+  if(e3){ console.error(e3); }
+
+  alertasBox.textContent = (al && al.length>0)
+    ? `Alertas: ${al.length} (revisar salidas negativas)`
+    : "Alertas: —";
+}
+
+/* =========================
+   WA RESUMEN
+========================= */
+async function waResumen(){
+  const f = fechaTrabajo.value || todayISO();
+
+  const { data: filasMarca } = await supabase
+    .from('v_menudo_resumen_diario')
+    .select('*')
+    .eq('fecha', f)
+    .order('marca', { ascending: true });
+
+  const { data: totales } = await supabase
+    .from('v_menudo_resumen_totales')
+    .select('*')
+    .eq('fecha', f)
+    .single();
+
+  const encargado = cfEncargado.value || 'N/D';
+
+  const header = `🧾 RESUMEN DIARIO – ${f}`;
+  const porMarca = (filasMarca||[])
+    .map(r => `• ${r.marca} → SI:${r.si} + E:${r.e} – CF:${r.cf} = S:${r.s}`)
+    .join('\n');
+
+  const t = totales || { si_total:0, e_total:0, cf_total:0, s_total:0 };
+  const footer = [
+    '',
+    '🔢 Totales',
+    `SI:${t.si_total||0}  E:${t.e_total||0}  CF:${t.cf_total||0}  S:${t.s_total||0}`,
+    '',
+    `👤 Encargado: ${encargado}`
+  ].join('\n');
+
+  const texto = [header, '', porMarca, footer].join('\n');
+  openWA(texto);
+}
+
+/* =========================
+   EVENTOS
+========================= */
+$("#btnGuardarEntrada").addEventListener("click", async ()=>{
+  await guardarEntrada();
+  await actualizarResumen();
+});
+$("#btnWAEntrada").addEventListener("click", ()=> waEntrada());
+$("#btnGuardarCF").addEventListener("click", async ()=>{
+  await guardarCF();
+  await actualizarResumen();
+});
+$("#btnWAResumen").addEventListener("click", ()=> waResumen());
+$("#btnActualizarResumen").addEventListener("click", ()=> actualizarResumen());
+fechaTrabajo.addEventListener("change", ()=> actualizarResumen());
+
+/* =========================
+   BOOT
+========================= */
+(async function boot(){
+  await loadMarcas();
+  await actualizarResumen();
+})();
 </script>
 </body>
 </html>
