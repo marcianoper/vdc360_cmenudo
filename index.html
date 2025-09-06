@@ -118,7 +118,7 @@
 
       <div class="flex" style="margin-top:12px">
         <button class="btn btn-primary" id="btnGuardarCF">Guardar Conteo</button>
-        <button class="btn btn-ghost" id="btnWAResumen">WhatsApp Resumen Diario</button>
+        <button class="btn btn-ghost" id="btnWAResumen">WhatsApp CF por marca</button>
         <span class="muted right" id="cfStatus">—</span>
       </div>
     </div>
@@ -173,7 +173,7 @@ function formatDateISO(d){ const x = new Date(d); const tz=x.getTimezoneOffset()
 function todayISO(){ return formatDateISO(new Date()); }
 function toast(el, msg){ el.textContent = msg; setTimeout(()=>{el.textContent="—"}, 3000); }
 
-/* 👇 NUEVO: abrir WhatsApp SIN número fijo (elige contacto/grupo al abrir) */
+/* 👇 Abrir WhatsApp SIN número fijo (elige contacto/grupo al abrir) */
 function openWA(text){
   const msg = encodeURIComponent(text);
   const url = `https://wa.me/?text=${msg}`;
@@ -339,22 +339,31 @@ async function actualizarResumen(){
 }
 
 /* =========================
-   WA RESUMEN — SOLO CF TOTAL
+   WA RESUMEN — SOLO CF POR MARCA
 ========================= */
 async function waResumen(){
   const f = fechaTrabajo.value || todayISO();
 
-  // Traer solo el CF total del día
-  const { data: totales, error } = await supabase
-    .from('v_menudo_resumen_totales')
-    .select('cf_total')
+  // Traer CF por marca del día seleccionado
+  const { data: marcas, error } = await supabase
+    .from('v_menudo_resumen_diario')
+    .select('marca, cf')
     .eq('fecha', f)
-    .single();
+    .order('marca', { ascending: true });
 
-  const cfTotal = (totales && Number.isFinite(totales.cf_total)) ? totales.cf_total : 0;
+  if (error) {
+    console.error(error);
+    openWA('CF por marca no disponible');
+    return;
+  }
 
-  // Mensaje minimalista
-  openWA(`CF total de cajas: ${cfTotal}`);
+  // Solo líneas "Marca: X cajas"
+  // Si prefieres ocultar marcas con 0 cajas, descomenta el filter:
+  // const lineas = (marcas || []).filter(r => (r.cf || 0) > 0).map(r => `${r.marca}: ${r.cf} cajas`);
+  const lineas = (marcas || []).map(r => `${r.marca}: ${r.cf} cajas`);
+
+  const texto = lineas.length ? lineas.join('\n') : 'Sin datos de CF por marca';
+  openWA(texto);
 }
 
 /* =========================
