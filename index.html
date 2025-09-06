@@ -176,9 +176,7 @@ function toast(el, msg){ el.textContent = msg; setTimeout(()=>{el.textContent="�
 /* 👇 NUEVO: abrir WhatsApp SIN número fijo (elige contacto/grupo al abrir) */
 function openWA(text){
   const msg = encodeURIComponent(text);
-  // wa.me sin phone carga la app/web y luego eliges el destinatario
   const url = `https://wa.me/?text=${msg}`;
-  // fallback útil para algunos navegadores
   const url2 = `https://api.whatsapp.com/send?text=${msg}`;
   const win = window.open(url, "_blank");
   setTimeout(()=>{ if(!win || win.closed) window.open(url2, "_blank"); }, 700);
@@ -243,7 +241,6 @@ async function guardarEntrada(){
   const operador = entOperador.value || null;
   const f = fechaTrabajo.value || todayISO();
 
-  // Opción A: 1 fila = 1 caja → insertamos N filas
   const rows = Array.from({length:cantidad}).map(()=>({
     marca, proveedor, lote, operador, fecha_entrada: f
   }));
@@ -342,41 +339,22 @@ async function actualizarResumen(){
 }
 
 /* =========================
-   WA RESUMEN
+   WA RESUMEN — SOLO CF TOTAL
 ========================= */
 async function waResumen(){
   const f = fechaTrabajo.value || todayISO();
 
-  const { data: filasMarca } = await supabase
-    .from('v_menudo_resumen_diario')
-    .select('*')
-    .eq('fecha', f)
-    .order('marca', { ascending: true });
-
-  const { data: totales } = await supabase
+  // Traer solo el CF total del día
+  const { data: totales, error } = await supabase
     .from('v_menudo_resumen_totales')
-    .select('*')
+    .select('cf_total')
     .eq('fecha', f)
     .single();
 
-  const encargado = cfEncargado.value || 'N/D';
+  const cfTotal = (totales && Number.isFinite(totales.cf_total)) ? totales.cf_total : 0;
 
-  const header = `🧾 RESUMEN DIARIO – ${f}`;
-  const porMarca = (filasMarca||[])
-    .map(r => `• ${r.marca} → SI:${r.si} + E:${r.e} – CF:${r.cf} = S:${r.s}`)
-    .join('\n');
-
-  const t = totales || { si_total:0, e_total:0, cf_total:0, s_total:0 };
-  const footer = [
-    '',
-    '🔢 Totales',
-    `SI:${t.si_total||0}  E:${t.e_total||0}  CF:${t.cf_total||0}  S:${t.s_total||0}`,
-    '',
-    `👤 Encargado: ${encargado}`
-  ].join('\n');
-
-  const texto = [header, '', porMarca, footer].join('\n');
-  openWA(texto);
+  // Mensaje minimalista
+  openWA(`CF total de cajas: ${cfTotal}`);
 }
 
 /* =========================
