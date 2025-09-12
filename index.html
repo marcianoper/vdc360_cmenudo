@@ -171,7 +171,8 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = (sel) => document.querySelector(sel);
 function formatDateISO(d){ const x = new Date(d); const tz=x.getTimezoneOffset()*60000; return new Date(x - tz).toISOString().slice(0,10); }
 function todayISO(){ return formatDateISO(new Date()); }
-function toast(el, msg){ el.textContent = msg; setTimeout(()=>{el.textContent="—"}, 3000); }
+function toast(el, msg){ el.textContent = msg; setTimeout(()=>{el.textContent="—"}, 4500); }
+function errMsg(e){ return e?.message || e?.hint || e?.details || 'Error desconocido'; }
 
 /* 👇 Abrir WhatsApp SIN número fijo (elige contacto/grupo al abrir) */
 function openWA(text){
@@ -214,13 +215,18 @@ async function loadMarcas(){
     .select('nombre')
     .eq('activa', true)
     .order('nombre', { ascending: true });
-  if(error){ console.error(error); return; }
+
+  if(error){
+    console.error(error);
+    toast(entStatus, `❌ No se pudieron cargar marcas: ${errMsg(error)}`);
+    return;
+  }
 
   // Select Entradas
-  entMarca.innerHTML = data.map(m=>`<option value="${m.nombre}">${m.nombre}</option>`).join('');
+  entMarca.innerHTML = (data||[]).map(m=>`<option value="${m.nombre}">${m.nombre}</option>`).join('');
 
   // Tabla Conteo
-  cfTablaBody.innerHTML = data.map(m=>{
+  cfTablaBody.innerHTML = (data||[]).map(m=>{
     return `<tr>
       <td>${m.nombre}</td>
       <td class="center">
@@ -246,7 +252,11 @@ async function guardarEntrada(){
   }));
 
   const { error } = await supabase.from('cajas_menudo_entrada').insert(rows);
-  if(error){ console.error(error); toast(entStatus, "❌ Error guardando entrada"); return; }
+  if(error){
+    console.error('Insert error:', error);
+    toast(entStatus, `❌ ${errMsg(error)}`);
+    return;
+  }
   toast(entStatus, `✅ Guardadas ${cantidad} cajas de ${marca}`);
 }
 
@@ -285,8 +295,11 @@ async function guardarCF(){
   if(rows.length===0){ toast(cfStatus, "⚠️ Nada que guardar"); return; }
 
   const { error } = await supabase.from('cajas_menudo_conteo_diario').insert(rows);
-  if(error){ console.error(error); toast(cfStatus, "❌ Error guardando conteo"); return; }
-
+  if(error){
+    console.error(error);
+    toast(cfStatus, `❌ ${errMsg(error)}`);
+    return;
+  }
   toast(cfStatus, "✅ Conteo guardado");
 }
 
@@ -302,7 +315,11 @@ async function actualizarResumen(){
     .select('*')
     .eq('fecha', f)
     .order('marca', { ascending: true });
-  if(e1){ console.error(e1); return; }
+  if(e1){
+    console.error(e1);
+    toast(entStatus, `❌ Resumen por marca no disponible: ${errMsg(e1)}`);
+    return;
+  }
 
   resumenTablaBody.innerHTML = (marcas||[]).map(r=>{
     const klass = (r.si + r.e - r.cf) < 0 ? 'danger' : 'ok';
@@ -321,7 +338,10 @@ async function actualizarResumen(){
     .select('*')
     .eq('fecha', f)
     .single();
-  if(e2 && e2.code!=='PGRST116'){ console.error(e2); } // PGRST116 = no rows
+  if(e2 && e2.code!=='PGRST116'){ // PGRST116 = no rows
+    console.error(e2);
+    toast(entStatus, `❌ Totales no disponibles: ${errMsg(e2)}`);
+  }
 
   const t = tots || { si_total:0, e_total:0, cf_total:0, s_total:0 };
   totalesBox.textContent = `Totales — SI: ${t.si_total||0} · E: ${t.e_total||0} · CF: ${t.cf_total||0} · S: ${t.s_total||0}`;
@@ -331,11 +351,14 @@ async function actualizarResumen(){
     .from('v_menudo_alertas')
     .select('*')
     .eq('fecha', f);
-  if(e3){ console.error(e3); }
-
-  alertasBox.textContent = (al && al.length>0)
-    ? `Alertas: ${al.length} (revisar salidas negativas)`
-    : "Alertas: —";
+  if(e3){
+    console.error(e3);
+    alertasBox.textContent = "Alertas: (error al consultar)";
+  } else {
+    alertasBox.textContent = (al && al.length>0)
+      ? `Alertas: ${al.length} (revisar salidas negativas)`
+      : "Alertas: —";
+  }
 }
 
 /* =========================
@@ -344,7 +367,6 @@ async function actualizarResumen(){
 async function waResumen(){
   const f = fechaTrabajo.value || todayISO();
 
-  // Traer CF por marca del día seleccionado
   const { data: marcas, error } = await supabase
     .from('v_menudo_resumen_diario')
     .select('marca, cf')
@@ -353,15 +375,12 @@ async function waResumen(){
 
   if (error) {
     console.error(error);
-    openWA('CF por marca no disponible');
+    openWA(`CF por marca no disponible: ${errMsg(error)}`);
     return;
   }
 
   // Solo líneas "Marca: X cajas"
-  // Si prefieres ocultar marcas con 0 cajas, descomenta el filter:
-  // const lineas = (marcas || []).filter(r => (r.cf || 0) > 0).map(r => `${r.marca}: ${r.cf} cajas`);
   const lineas = (marcas || []).map(r => `${r.marca}: ${r.cf} cajas`);
-
   const texto = lineas.length ? lineas.join('\n') : 'Sin datos de CF por marca';
   openWA(texto);
 }
