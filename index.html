@@ -89,7 +89,7 @@
         <button class="btn btn-ghost" id="btnWAEntrada">WhatsApp Entrada</button>
         <span class="muted right" id="entStatus">—</span>
       </div>
-      <p class="mini muted">Nota: en tu tabla <b>cajas_menudo_entrada</b> cada fila equivale a <b>1 caja</b>. Aquí, si capturas “10”, insertamos 10 filas en una sola operación.</p>
+      <p class="mini muted">Nota: en tu tabla <b>cajas_menudo_entrada</b> cada fila equivale a <b>1 caja</b> (campo <code>cantidad_cajas=1</code>). Si capturas “10”, insertamos 10 filas.</p>
     </div>
 
     <!-- CIERRE / CONTEO -->
@@ -247,8 +247,14 @@ async function guardarEntrada(){
   const operador = entOperador.value || null;
   const f = fechaTrabajo.value || todayISO();
 
+  // 1 fila = 1 caja -> cantidad_cajas: 1 (cumple NOT NULL)
   const rows = Array.from({length:cantidad}).map(()=>({
-    marca, proveedor, lote, operador, fecha_entrada: f
+    marca,
+    proveedor,
+    lote,
+    operador,
+    fecha_entrada: f,
+    cantidad_cajas: 1
   }));
 
   const { error } = await supabase.from('cajas_menudo_entrada').insert(rows);
@@ -379,7 +385,6 @@ async function waResumen(){
     return;
   }
 
-  // Solo líneas "Marca: X cajas"
   const lineas = (marcas || []).map(r => `${r.marca}: ${r.cf} cajas`);
   const texto = lineas.length ? lineas.join('\n') : 'Sin datos de CF por marca';
   openWA(texto);
