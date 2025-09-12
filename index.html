@@ -40,7 +40,7 @@
 </head>
 <body>
 <header>
-  <h1>VDC360° · Cajas de Menudo (Entradas + Cierre EOD)</h1>
+  <h1>VDC360° · Cajas de Menudo </h1>
 </header>
 
 <main>
@@ -157,7 +157,7 @@
 /* =========================
    CONFIG
 ========================= */
-const SUPABASE_URL = "https://bjebybdqcqscouxlinfd.supabase.co";         // <- TU URL
+const SUPABASE_URL = "https://bjebybdqcqscouxlinfd.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqZWJ5YmRxY3FzY291eGxpbmZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzMjQ3MTksImV4cCI6MjA3MTkwMDcxOX0.mQgWtiYEyJTiF04pdcLv63SqPNrU1Iehws0vKqr82O0";
 
 /* =========================
@@ -244,17 +244,22 @@ async function guardarEntrada(){
   const cantidad = Math.max(1, parseInt(entCantidad.value||"1",10));
   const proveedor = entProveedor.value || null;
   const lote = entLote.value || null;
-  const operador = entOperador.value || null;
+
+  // Operador escrito y usado también como usuario_registro (NOT NULL)
+  const operador = (entOperador.value || '').trim();
+  const usuarioRegistro = operador || 'sistema';
+
   const f = fechaTrabajo.value || todayISO();
 
-  // 1 fila = 1 caja -> cantidad_cajas: 1 (cumple NOT NULL)
+  // 1 fila = 1 caja → cantidad_cajas: 1 + usuario_registro requerido
   const rows = Array.from({length:cantidad}).map(()=>({
     marca,
     proveedor,
     lote,
-    operador,
+    operador: operador || null,
+    usuario_registro: usuarioRegistro,  // <- requerido por tu tabla
     fecha_entrada: f,
-    cantidad_cajas: 1
+    cantidad_cajas: 1                   // <- cumple NOT NULL
   }));
 
   const { error } = await supabase.from('cajas_menudo_entrada').insert(rows);
@@ -344,7 +349,7 @@ async function actualizarResumen(){
     .select('*')
     .eq('fecha', f)
     .single();
-  if(e2 && e2.code!=='PGRST116'){ // PGRST116 = no rows
+  if(e2 && e2.code!=='PGRST116'){
     console.error(e2);
     toast(entStatus, `❌ Totales no disponibles: ${errMsg(e2)}`);
   }
