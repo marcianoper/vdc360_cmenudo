@@ -154,20 +154,16 @@
   </div>
 </main>
 
-<!-- Supabase (UMD global window.supabase) -->
-<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<!-- ✅ Supabase como ESM (GitHub Pages friendly) -->
+<script type="module">
+  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
-<script defer>
-(() => {
-  /* =========================
-     CONFIG
-  ========================= */
   const SUPABASE_URL = "https://bjebybdqcqscouxlinfd.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqZWJ5YmRxY3FzY291eGxpbmZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzMjQ3MTksImV4cCI6MjA3MTkwMDcxOX0.mQgWtiYEyJTiF04pdcLv63SqPNrU1Iehws0vKqr82O0";
 
-  /* =========================
-     HELPERS
-  ========================= */
+  // Anti doble-ejecución (extensiones / auto-reload)
+  const sb = window.__VDC360_SB ?? (window.__VDC360_SB = createClient(SUPABASE_URL, SUPABASE_ANON_KEY));
+
   const $ = (sel) => document.querySelector(sel);
 
   function formatDateISO(d){
@@ -183,7 +179,7 @@
     clearTimeout(el.__t);
     el.__t = setTimeout(()=>{ el.textContent="—"; }, 4500);
   }
-  function errMsg(e){ return e?.message || e?.hint || e?.details || 'Error desconocido'; }
+  function errMsg(e){ return e?.message || e?.hint || e?.details || "Error desconocido"; }
 
   function openWA(text){
     const msg = encodeURIComponent(text);
@@ -193,23 +189,7 @@
     setTimeout(()=>{ if(!win || win.closed) window.open(url2, "_blank"); }, 700);
   }
 
-  /* =========================
-     SUPABASE CLIENT (ANTI DOBLE-EJECUCIÓN)
-  ========================= */
-  function getSb(){
-    // Si algún auto-reloader corre el script dos veces, esto evita el crash.
-    if (window.__VDC360_SB) return window.__VDC360_SB;
-
-    if (!window.supabase || !window.supabase.createClient) {
-      throw new Error("Supabase no cargó. Revisa internet/CDN o que el script UMD esté correcto.");
-    }
-    window.__VDC360_SB = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    return window.__VDC360_SB;
-  }
-
-  /* =========================
-     INIT UI
-  ========================= */
+  // UI refs
   const fechaTrabajo = $("#fechaTrabajo");
   const entMarca = $("#entMarca");
   const entCantidad = $("#entCantidad");
@@ -230,16 +210,12 @@
   fechaTrabajo.value = todayISO();
   cfFecha.value = todayISO();
 
-  /* =========================
-     CARGAR MARCAS ACTIVAS
-  ========================= */
   async function loadMarcas(){
-    const sb = getSb();
     const { data, error } = await sb
-      .from('marcas_menudo')
-      .select('nombre')
-      .eq('activa', true)
-      .order('nombre', { ascending: true });
+      .from("marcas_menudo")
+      .select("nombre")
+      .eq("activa", true)
+      .order("nombre", { ascending: true });
 
     if(error){
       console.error(error);
@@ -248,7 +224,7 @@
     }
 
     const list = data || [];
-    entMarca.innerHTML = list.map(m=>`<option value="${m.nombre}">${m.nombre}</option>`).join('');
+    entMarca.innerHTML = list.map(m=>`<option value="${m.nombre}">${m.nombre}</option>`).join("");
 
     cfTablaBody.innerHTML = list.map(m=>`
       <tr>
@@ -257,23 +233,17 @@
           <input type="number" min="0" step="1" class="cf-input" data-marca="${m.nombre}" placeholder="0" />
         </td>
       </tr>
-    `).join('');
+    `).join("");
   }
 
-  /* =========================
-     ENTRADAS: INSERT MASIVO
-  ========================= */
   async function guardarEntrada(){
-    const sb = getSb();
-
     const marca = entMarca.value;
     const cantidad = Math.max(1, parseInt(entCantidad.value || "1", 10));
     const proveedor = entProveedor.value || null;
     const lote = entLote.value || null;
 
-    const operador = (entOperador.value || '').trim();
-    const usuarioRegistro = operador || 'sistema';
-
+    const operador = (entOperador.value || "").trim();
+    const usuarioRegistro = operador || "sistema";
     const f = fechaTrabajo.value || todayISO();
 
     const rows = Array.from({length: cantidad}).map(() => ({
@@ -286,9 +256,9 @@
       cantidad_cajas: 1
     }));
 
-    const { error } = await sb.from('cajas_menudo_entrada').insert(rows);
+    const { error } = await sb.from("cajas_menudo_entrada").insert(rows);
     if(error){
-      console.error('Insert error:', error);
+      console.error("Insert error:", error);
       toast(entStatus, `❌ ${errMsg(error)}`);
       return;
     }
@@ -298,9 +268,9 @@
   function waEntrada(){
     const marca = entMarca.value;
     const cantidad = Math.max(1, parseInt(entCantidad.value||"1",10));
-    const proveedor = entProveedor.value || 'N/D';
-    const lote = entLote.value || 'N/D';
-    const operador = entOperador.value || 'N/D';
+    const proveedor = entProveedor.value || "N/D";
+    const lote = entLote.value || "N/D";
+    const operador = entOperador.value || "N/D";
     const f = fechaTrabajo.value || todayISO();
 
     openWA([
@@ -311,16 +281,12 @@
       `Lote/Ref: ${lote}`,
       `Fecha: ${f}`,
       `Operador: ${operador}`
-    ].join('\n'));
+    ].join("\n"));
   }
 
-  /* =========================
-     CIERRE: GUARDAR CF
-  ========================= */
   async function guardarCF(){
-    const sb = getSb();
     const f = cfFecha.value || todayISO();
-    const encargado = (cfEncargado.value || '').trim() || null;
+    const encargado = (cfEncargado.value || "").trim() || null;
 
     const inputs = Array.from(document.querySelectorAll(".cf-input"));
     const rows = inputs
@@ -337,7 +303,7 @@
       return;
     }
 
-    const { error } = await sb.from('cajas_menudo_conteo_diario').insert(rows);
+    const { error } = await sb.from("cajas_menudo_conteo_diario").insert(rows);
     if(error){
       console.error(error);
       toast(cfStatus, `❌ ${errMsg(error)}`);
@@ -346,18 +312,14 @@
     toast(cfStatus, "✅ Conteo guardado");
   }
 
-  /* =========================
-     RESUMEN: LEER VISTAS
-  ========================= */
   async function actualizarResumen(){
-    const sb = getSb();
     const f = fechaTrabajo.value || todayISO();
 
     const { data: marcas, error: e1 } = await sb
-      .from('v_menudo_resumen_diario')
-      .select('*')
-      .eq('fecha', f)
-      .order('marca', { ascending: true });
+      .from("v_menudo_resumen_diario")
+      .select("*")
+      .eq("fecha", f)
+      .order("marca", { ascending: true });
 
     if(e1){
       console.error(e1);
@@ -368,7 +330,7 @@
     resumenTablaBody.innerHTML = (marcas||[]).map(r=>{
       const sCalc = (Number(r.si)||0) + (Number(r.e)||0) - (Number(r.cf)||0);
       const sShow = (r.s ?? sCalc);
-      const klass = Number(sShow) < 0 ? 'danger' : 'ok';
+      const klass = Number(sShow) < 0 ? "danger" : "ok";
       return `
         <tr>
           <td>${r.marca}</td>
@@ -378,12 +340,12 @@
           <td class="${klass}">${sShow ?? 0}</td>
         </tr>
       `;
-    }).join('');
+    }).join("");
 
     const { data: tots, error: e2 } = await sb
-      .from('v_menudo_resumen_totales')
-      .select('*')
-      .eq('fecha', f)
+      .from("v_menudo_resumen_totales")
+      .select("*")
+      .eq("fecha", f)
       .maybeSingle();
 
     if(e2){
@@ -395,9 +357,9 @@
     totalesBox.textContent = `Totales — SI: ${t.si_total||0} · E: ${t.e_total||0} · CF: ${t.cf_total||0} · S: ${t.s_total||0}`;
 
     const { data: al, error: e3 } = await sb
-      .from('v_menudo_alertas')
-      .select('*')
-      .eq('fecha', f);
+      .from("v_menudo_alertas")
+      .select("*")
+      .eq("fecha", f);
 
     if(e3){
       console.error(e3);
@@ -409,18 +371,14 @@
     }
   }
 
-  /* =========================
-     WA RESUMEN — SOLO CF POR MARCA
-  ========================= */
   async function waResumen(){
-    const sb = getSb();
     const f = fechaTrabajo.value || todayISO();
 
     const { data: marcas, error } = await sb
-      .from('v_menudo_resumen_diario')
-      .select('marca, cf')
-      .eq('fecha', f)
-      .order('marca', { ascending: true });
+      .from("v_menudo_resumen_diario")
+      .select("marca, cf")
+      .eq("fecha", f)
+      .order("marca", { ascending: true });
 
     if (error) {
       console.error(error);
@@ -429,12 +387,10 @@
     }
 
     const lineas = (marcas || []).map(r => `${r.marca}: ${r.cf ?? 0} cajas`);
-    openWA(lineas.length ? lineas.join('\n') : 'Sin datos de CF por marca');
+    openWA(lineas.length ? lineas.join("\n") : "Sin datos de CF por marca");
   }
 
-  /* =========================
-     EVENTOS
-  ========================= */
+  // Eventos
   $("#btnGuardarEntrada").addEventListener("click", async ()=>{
     await guardarEntrada();
     await actualizarResumen();
@@ -448,20 +404,15 @@
   $("#btnActualizarResumen").addEventListener("click", actualizarResumen);
   fechaTrabajo.addEventListener("change", actualizarResumen);
 
-  /* =========================
-     BOOT
-  ========================= */
-  (async function boot(){
-    try{
-      await loadMarcas();
-      await actualizarResumen();
-    } catch (e){
-      console.error(e);
-      toast(entStatus, `❌ ${errMsg(e)}`);
-    }
-  })();
-})();
+  // Boot
+  try{
+    await loadMarcas();
+    await actualizarResumen();
+  } catch(e){
+    console.error(e);
+    toast(entStatus, `❌ ${errMsg(e)}`);
+  }
 </script>
+
 </body>
 </html>
-
