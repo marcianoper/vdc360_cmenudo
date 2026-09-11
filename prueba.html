@@ -326,13 +326,24 @@ const InventarioCajas = (() => {
     if(!inicio?.id || !inicio.iniciado_en || !Number.isFinite(Date.parse(inicio.iniciado_en))) return {error:'Primero inicia el inventario desde cero.'};
     return {cajas:0,fecha:diaMexico(inicio.iniciado_en),desde:inicio.iniciado_en};
   }
+  function fechaMovimiento(value,timestamp){
+    const raw=String(value??'').trim();
+    // Acepta DATE (YYYY-MM-DD), timestamp ISO y valores de fecha parseables.
+    const iso=raw.match(/^(\d{4}-\d{2}-\d{2})/);
+    if(iso) return iso[1];
+    if(raw && Number.isFinite(Date.parse(raw))) return diaMexico(raw);
+    // Algunas tablas históricas no guardaban `fecha` por separado. En ese caso,
+    // la fecha real de creación del movimiento es la fuente más segura disponible.
+    if(timestamp && Number.isFinite(Date.parse(timestamp))) return diaMexico(timestamp);
+    throw new Error('Hay un movimiento sin fecha válida.');
+  }
   function despuesDelInicio(row,source,base,hoy){
     if(base.error) return false;
     const timestamp=source==='entradas'?row.inventario_registrado_en:row.created_at;
     if(!timestamp || !Number.isFinite(Date.parse(timestamp))) throw new Error('Falta la fecha y hora de registro de un movimiento.');
     if(Date.parse(timestamp)<Date.parse(base.desde)) return false;
-    const day=source==='notas'?diaMexico(timestamp):source==='entradas'?row.fecha_entrada:row.fecha;
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(day||'')) throw new Error('Hay un movimiento sin fecha válida.');
+    const rawDay=source==='notas'?timestamp:source==='entradas'?row.fecha_entrada:row.fecha;
+    const day=fechaMovimiento(rawDay,timestamp);
     return day>=base.fecha && day<=hoy && diaMexico(timestamp)<=hoy;
   }
   function sugerencia(marca){
@@ -416,7 +427,7 @@ const InventarioCajas = (() => {
         let day;
         try{
           if(!despuesDelInicio(row,source,base,hoy)) continue;
-          day=source==='notas'?diaMexico(row.created_at):row.fecha;
+          day=fechaMovimiento(source==='notas'?row.created_at:row.fecha,row.created_at);
         }catch(error){if(item)item.problemas.push(error.message);continue;}
         if(!item){
           if(possibleBox(row.producto)){
