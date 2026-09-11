@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <title>VDC360° – Inventario de cajas en bodega</title>
+  <title>VDC360° – Inventario de cajas Canadian, Excel, National y Washington</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root{--ink:#111;--brand:#0a7a3b;--muted:#6b7280;--bg:#f6f7f8;--card:#fff}
@@ -110,12 +110,19 @@
     .inv-stale .inv-value{text-decoration:line-through;color:#64748b}
     .inv-stale .inv-brand:before{content:'LECTURA ANTERIOR';display:block;font-size:12px;font-weight:700;color:#9a3412;margin-bottom:10px}
     .inv-bottom{font-size:13px;color:#56636c;margin-top:16px;line-height:1.5}
-    #invConfigDialog,#invInicioDialog{max-width:650px;width:calc(100% - 32px);max-height:90vh;overflow:auto;border:1px solid #dce4e0;border-radius:14px;padding:22px}
-    #invConfigDialog::backdrop,#invInicioDialog::backdrop{background:rgba(0,0,0,.45)}
-    #invConfigDialog h2,#invInicioDialog h2{font-size:21px}#invConfigDialog textarea{min-height:120px;resize:vertical;line-height:1.5}
-    #invConfigDialog p,#invInicioDialog p{font-size:14px;line-height:1.5}#invConfigDialog label{font-weight:600}
+    #invConfigDialog,#invInicioDialog,#invWhatsappDialog{max-width:650px;width:calc(100% - 32px);max-height:90vh;overflow:auto;border:1px solid #dce4e0;border-radius:14px;padding:22px}
+    #invConfigDialog::backdrop,#invInicioDialog::backdrop,#invWhatsappDialog::backdrop{background:rgba(0,0,0,.45)}
+    #invConfigDialog h2,#invInicioDialog h2,#invWhatsappDialog h2{font-size:21px}#invConfigDialog textarea{min-height:120px;resize:vertical;line-height:1.5}
+    #invConfigDialog p,#invInicioDialog p,#invWhatsappDialog p{font-size:14px;line-height:1.5}#invConfigDialog label{font-weight:600}
     .inv-inicio{padding:14px;background:#f1f7f3;border:1px solid #b8d6c2;border-radius:8px;margin:12px 0;display:flex;align-items:center;gap:14px;flex-wrap:wrap}.inv-inicio p{font-size:14px;line-height:1.5;flex:1;min-width:200px;margin:0}.inv-inicio button{width:auto;margin:0}
     .inv-dialog-actions{display:flex;gap:10px;margin-top:16px}
+    .wa-state{font-size:12px;padding:6px 9px;border-radius:999px;background:#eef2f7;color:#475569;white-space:nowrap}
+    .wa-state[data-state="ok"]{background:#dcfce7;color:#166534}
+    .wa-state[data-state="error"]{background:#fee2e2;color:#991b1b}
+    .wa-config-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}
+    .wa-config-row button{width:auto}
+    .wa-check{display:flex;gap:10px;align-items:center;margin-top:14px;font-weight:700}
+    .wa-check input{width:auto;margin:0;transform:scale(1.2)}
     button:disabled{opacity:.55;cursor:wait}
     button:focus-visible,summary:focus-visible{outline:3px solid #218856;outline-offset:3px}
     @media(max-width:520px){.inv-head h2{font-size:21px}.inv-toolbar{width:100%}.inv-toolbar button{flex:1}.inv-kpis{gap:16px}.inv-kpis div{flex:1;min-width:75px}.row-3{grid-template-columns:1fr}.row-2{gap:8px}main{padding:10px}.card{padding:13px}}
@@ -130,8 +137,8 @@
 <main>
 
   <section class="card inv-card" aria-labelledby="invTitulo">
-    <div class="inv-head"><div><h2 id="invTitulo">Cajas disponibles en bodega</h2><p>Entradas, ventas directas y envíos a mostrador por marca.</p></div>
-      <div class="inv-toolbar"><button type="button" id="invActualizar" class="btn btn-primary">Actualizar existencias</button><button type="button" id="invSonido" class="btn btn-ghost" aria-pressed="false">Activar sonido</button></div>
+    <div class="inv-head"><div><h2 id="invTitulo">Cajas disponibles en bodega</h2><p>Canadian, Excel, National y Washington · entradas, ventas directas y envíos a mostrador.</p></div>
+      <div class="inv-toolbar"><button type="button" id="invActualizar" class="btn btn-primary">Actualizar existencias</button><button type="button" id="invWhatsapp" class="btn btn-ghost">WhatsApp</button><span id="invWhatsappEstado" class="wa-state">Sin configurar</span><button type="button" id="invSonido" class="btn btn-ghost" aria-pressed="false">Activar sonido</button></div>
     </div>
     <div class="inv-inicio"><p id="invInicioTexto">Comprobando si ya existe un inicio guardado…</p><button id="invInicioBoton" type="button" class="btn btn-ghost">Iniciar inventario desde cero</button></div>
     <div class="inv-sources"><span id="invFuenteEntradas">Entradas: pendiente</span><span id="invFuenteNotas">Notas: pendiente</span><span id="invFuenteMostrador">Mostrador: pendiente</span></div>
@@ -153,12 +160,26 @@
   <dialog id="invConfigDialog" aria-labelledby="invConfigTitulo"><form id="invConfigForm">
     <h2 id="invConfigTitulo">Configurar marca</h2><input type="hidden" id="invConfigMarca">
     <p id="invConfigAviso" class="muted"></p>
-    <div class="row-2"><div><label for="invMinimo">Avisar al llegar a estas cajas</label><input type="number" id="invMinimo" min="0" step="0.001" required></div><div><label for="invKgCaja">Kilos por caja</label><input type="number" id="invKgCaja" min="0.001" step="0.001" placeholder="Confirmar peso"></div></div>
+    <div class="row-2"><div><label for="invMinimo">Límite de alerta (cajas)</label><input type="number" id="invMinimo" min="0" step="0.001" required></div><div><label for="invKgCaja">Kilos por caja</label><input type="number" id="invKgCaja" min="0.001" step="0.001" placeholder="Confirmar peso"></div></div>
     <p class="muted">Las piezas capturadas se tomarán como cajas. Si solo hay kilos, se convertirán a cajas equivalentes con este peso; sin peso confirmado, ese saldo quedará pendiente.</p>
     <label for="invProductosNotas">Nombres de producto en notas</label><textarea id="invProductosNotas" required spellcheck="false"></textarea>
     <label for="invProductosMostrador">Nombres de producto en mostrador</label><textarea id="invProductosMostrador" required spellcheck="false"></textarea>
     <p class="muted">Un nombre por renglón. Solo vincula presentaciones que correspondan a esta marca de cajas. Acentos, mayúsculas y guiones no cambian la coincidencia.</p>
     <p id="invConfigError" class="danger" role="alert"></p><div class="inv-dialog-actions"><button type="submit" id="invGuardarConfig" class="btn btn-primary">Guardar configuración</button><button type="button" id="invCerrarConfig" class="btn btn-ghost">Cerrar</button></div>
+  </form></dialog>
+
+  <dialog id="invWhatsappDialog" aria-labelledby="invWhatsappTitulo"><form id="invWhatsappForm">
+    <h2 id="invWhatsappTitulo">Alertas por WhatsApp</h2>
+    <p>Cuando una marca llegue o baje de su <b>límite de alerta</b>, esta página enviará un solo aviso al grupo. No repetirá el mensaje cada 30 segundos; después de reponer por encima del límite quedará lista para avisar de nuevo.</p>
+    <label for="waServidor">Servidor VDC360 / OpenWA</label>
+    <input id="waServidor" type="url" spellcheck="false" placeholder="http://192.168.1.84:5001/enviar-mensaje">
+    <div class="wa-config-row"><div><label for="waGrupo">Grupo de WhatsApp</label><select id="waGrupo"><option value="">Selecciona un grupo…</option></select></div><button type="button" id="waCargarGrupos" class="btn btn-ghost">Cargar grupos</button></div>
+    <label for="waGrupoManual">ID manual del grupo (opcional)</label>
+    <input id="waGrupoManual" spellcheck="false" placeholder="120363...@g.us">
+    <label class="wa-check"><input id="waActivo" type="checkbox"> Activar alertas automáticas</label>
+    <p class="muted">El servidor de WhatsApp debe estar encendido y accesible desde este equipo. La página usa la ruta <b>/enviar-mensaje</b> con el sistema de cola que ya utiliza VDC360.</p>
+    <p id="waConfigEstado" class="muted" role="status"></p>
+    <div class="inv-dialog-actions"><button type="submit" id="waGuardar" class="btn btn-primary">Guardar</button><button type="button" id="waProbar" class="btn btn-muted">Probar mensaje</button><button type="button" id="waCerrar" class="btn btn-ghost">Cerrar</button></div>
   </form></dialog>
 
   <div class="card">
@@ -352,9 +373,7 @@ const InventarioCajas = (() => {
       ['NATIONAL',27.22,['Caja Menudo National','Caja Menudo National X KG','CAJA_MENUDO_NATIONAL','Caja Azul','Caja Azul Completa']],
       ['CANADIAN',27.28,['Caja Menudo Canadian','Caja Menudo Canadian X KG','Menudo Canadian','MENUDO_CANADIAN','Caja Canadian','Caja Canadian Completa']],
       ['WASHINGTON',27.22,['Caja Washington','CAJA_WASHINGTON','Caja Washington Completa']],
-      ['EXCEL',27.22,['Caja Excel','CAJA_EXCEL']],
-      ['SWIFT',null,['Caja Menudo Swift','CAJA_MENUDO_SWIFT']],
-      ['VISCERAS',null,['Caja menudo vísceras','CAJA_MENUDO_VISCERAS']]
+      ['EXCEL',27.22,['Caja Excel','CAJA_EXCEL']]
     ];
     const match=sets.find(([token])=>n.split(' ').includes(token));
     return {marca,minimo_cajas:10,kg_por_caja:match?.[1]??null,productos_notas:match?.[2]??[],productos_mostrador:match?.[2]??[]};
@@ -508,6 +527,12 @@ const InventarioCajas = (() => {
   let inventarioMarcas=[], inventarioConfiguraciones=[], inventarioUltimo=null, inventarioOcupado=false;
   let inventarioSonido=false, inventarioAudio=null, inventarioAlertasPrevias=new Map();
   let inventarioTimer=null, inventarioLeyendo=false;
+  const MARCAS_INVENTARIO_PERMITIDAS=new Set(['CANADIAN','EXCEL','NATIONAL','WASHINGTON']);
+  const WA_CONFIG_KEY='vdc360_inventario_whatsapp_v1';
+  const WA_LATCH_KEY='vdc360_inventario_whatsapp_latches_v1';
+  const WA_DEFAULT_SERVER='http://192.168.1.84:5001/enviar-mensaje';
+  let waConfig={activo:false,servidor:WA_DEFAULT_SERVER,grupoId:'',grupoNombre:''};
+  let waEnviando=new Set();
   const invText = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const invNum = value => Number(value).toLocaleString('es-MX',{maximumFractionDigits:2});
   const invFecha = value => value ? value.split('-').reverse().join('/') : '—';
@@ -546,6 +571,135 @@ const InventarioCajas = (() => {
   function invFuente(id,text,tipo='pendiente'){
     const el=$(id);el.textContent=text;el.dataset.state=tipo;
   }
+  function cargarWAConfigLocal(){
+    try{
+      const saved=JSON.parse(localStorage.getItem(WA_CONFIG_KEY)||'{}');
+      waConfig={
+        activo:Boolean(saved.activo),
+        servidor:String(saved.servidor||WA_DEFAULT_SERVER).trim(),
+        grupoId:String(saved.grupoId||'').trim(),
+        grupoNombre:String(saved.grupoNombre||'').trim()
+      };
+    }catch(_){waConfig={activo:false,servidor:WA_DEFAULT_SERVER,grupoId:'',grupoNombre:''};}
+    pintarWAEstado();
+  }
+  function guardarWAConfigLocal(){
+    localStorage.setItem(WA_CONFIG_KEY,JSON.stringify(waConfig));
+    pintarWAEstado();
+  }
+  function pintarWAEstado(tipo){
+    const el=$('#invWhatsappEstado');if(!el)return;
+    if(tipo==='error'){el.textContent='WhatsApp: error';el.dataset.state='error';return;}
+    if(waConfig.activo&&waConfig.grupoId){el.textContent='WhatsApp: activo';el.dataset.state='ok';}
+    else {el.textContent='WhatsApp: sin activar';el.dataset.state='';}
+  }
+  function waBaseURL(){
+    const value=String(waConfig.servidor||WA_DEFAULT_SERVER).trim().replace(/\/+$/,'');
+    return value.replace(/\/enviar-mensaje$/i,'');
+  }
+  async function cargarGruposWhatsapp(){
+    const status=$('#waConfigEstado');const btn=$('#waCargarGrupos');btn.disabled=true;status.textContent='Consultando grupos…';
+    try{
+      const server=String($('#waServidor').value||WA_DEFAULT_SERVER).trim().replace(/\/+$/,'').replace(/\/enviar-mensaje$/i,'');
+      const response=await fetch(server+'/grupos',{method:'GET',cache:'no-store'});
+      let data={};try{data=await response.json();}catch(_){ }
+      if(!response.ok||!data.ok||!Array.isArray(data.grupos)) throw new Error(data.error||('HTTP '+response.status));
+      const select=$('#waGrupo');
+      select.innerHTML='<option value="">Selecciona un grupo…</option>'+data.grupos.map(g=>`<option value="${invText(g.id)}">${invText(g.nombre||g.id)}${g.participantes?` · ${invText(g.participantes)} participantes`:''}</option>`).join('');
+      if(waConfig.grupoId) select.value=waConfig.grupoId;
+      status.textContent=`${data.grupos.length} grupo(s) encontrados.`;
+    }catch(error){status.textContent='No se pudieron cargar los grupos: '+errMsg(error);}
+    finally{btn.disabled=false;}
+  }
+  function abrirWhatsappConfig(){
+    $('#waServidor').value=waConfig.servidor||WA_DEFAULT_SERVER;
+    $('#waGrupoManual').value=waConfig.grupoId||'';
+    $('#waActivo').checked=Boolean(waConfig.activo);
+    $('#waConfigEstado').textContent=waConfig.grupoId?(waConfig.grupoNombre?`Grupo actual: ${waConfig.grupoNombre}`:`Grupo actual: ${waConfig.grupoId}`):'Selecciona o pega el ID del grupo.';
+    $('#invWhatsappDialog').showModal();
+    cargarGruposWhatsapp();
+  }
+  function leerWAForm(){
+    const selected=$('#waGrupo');
+    const manual=String($('#waGrupoManual').value||'').trim();
+    const grupoId=manual||String(selected.value||'').trim();
+    const grupoNombre=manual?manual:(selected.selectedOptions[0]?.textContent||grupoId);
+    const servidor=String($('#waServidor').value||WA_DEFAULT_SERVER).trim();
+    const activo=$('#waActivo').checked;
+    if(activo&&!servidor) throw new Error('Falta la dirección del servidor VDC360.');
+    if(activo&&!grupoId) throw new Error('Selecciona un grupo de WhatsApp.');
+    if(grupoId&&!grupoId.endsWith('@g.us')) throw new Error('El ID del grupo debe terminar en @g.us.');
+    return {activo,servidor,grupoId,grupoNombre};
+  }
+  async function enviarWhatsappAutomatico(mensaje,config=waConfig){
+    const response=await fetch(config.servidor,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({telefono:config.grupoId,mensaje})});
+    let data={};try{data=await response.json();}catch(_){ }
+    if(!response.ok && response.status!==202) throw new Error(data.error||data.detalle||('HTTP '+response.status));
+    return data;
+  }
+  async function probarWhatsapp(){
+    const status=$('#waConfigEstado');const btn=$('#waProbar');btn.disabled=true;
+    try{
+      const config=leerWAForm();
+      if(!config.grupoId) throw new Error('Selecciona un grupo para hacer la prueba.');
+      const test={...config,activo:true};
+      status.textContent='Enviando prueba…';
+      await enviarWhatsappAutomatico('✅ PRUEBA VDC360\nLas alertas automáticas de inventario están conectadas correctamente.',test);
+      status.textContent='✅ Mensaje de prueba agregado a la cola de WhatsApp.';
+    }catch(error){status.textContent='❌ '+errMsg(error);}
+    finally{btn.disabled=false;}
+  }
+  function leerWALatches(){
+    try{return JSON.parse(localStorage.getItem(WA_LATCH_KEY)||'{}')||{};}catch(_){return {};}
+  }
+  function guardarWALatches(value){localStorage.setItem(WA_LATCH_KEY,JSON.stringify(value));}
+  async function procesarAlertasWhatsapp(brands){
+    if(!waConfig.activo||!waConfig.grupoId||!waConfig.servidor||!inventarioInicio?.id)return;
+    const latches=leerWALatches();
+    let changed=false;
+    for(const r of brands){
+      if(!r.config||r.problemas?.length||r.disponible===null||!Number.isFinite(Number(r.disponible)))continue;
+      const key=String(inventarioInicio.id)+'|'+InventarioCajas.normalizar(r.marca);
+      const limite=Number(r.config.minimo_cajas);
+      const saldo=Number(r.disponible);
+      const enLimite=saldo<=limite;
+      if(!enLimite){
+        if(latches[key]){delete latches[key];changed=true;}
+        continue;
+      }
+      if(latches[key]||waEnviando.has(key))continue;
+      waEnviando.add(key);
+      const estado=saldo<0?'REVISAR SALDO':saldo===0?'AGOTADO':'REORDENAR';
+      const mensaje=[
+        '⚠️ ALERTA DE INVENTARIO CVC',
+        `Marca: ${r.marca}`,
+        `Existencia: ${invNum(saldo)} ${r.estimado?'cajas equivalentes':'cajas'}`,
+        `Límite: ${invNum(limite)} cajas`,
+        `Estado: ${estado}`,
+        `Hora: ${new Date().toLocaleString('es-MX',{timeZone:'America/Mexico_City'})}`
+      ].join('\n');
+      try{
+        await enviarWhatsappAutomatico(mensaje);
+        latches[key]={saldo,limite,enviadoEn:new Date().toISOString()};changed=true;
+        pintarWAEstado();
+      }catch(error){
+        console.error('WhatsApp inventario:',error);pintarWAEstado('error');
+        invEstado('Existencias actualizadas, pero no se pudo enviar la alerta por WhatsApp: '+errMsg(error),'danger');
+      }finally{waEnviando.delete(key);}
+    }
+    if(changed)guardarWALatches(latches);
+  }
+  function guardarWAConfig(event){
+    event.preventDefault();
+    try{
+      waConfig=leerWAForm();guardarWAConfigLocal();
+      $('#waConfigEstado').textContent='✅ Configuración guardada.';
+      if(!waConfig.activo) localStorage.removeItem(WA_LATCH_KEY);
+      setTimeout(()=>$('#invWhatsappDialog').close(),350);
+      if(waConfig.activo&&inventarioUltimo)procesarAlertasWhatsapp(inventarioUltimo.marcas);
+    }catch(error){$('#waConfigEstado').textContent='❌ '+errMsg(error);}
+  }
+
   function pintarInventario(resultado){
     inventarioUltimo=resultado;
     const brands=resultado.marcas;
@@ -580,6 +734,7 @@ const InventarioCajas = (() => {
       inventarioAlertasPrevias.set(r.marca,r.estado);
     }
     if(inventarioSonido && changed) sonarInventario();
+    procesarAlertasWhatsapp(brands);
   }
   async function actualizarInventario(){
     if(inventarioOcupado || inventarioIniciando || !inventarioMarcas.length) return;
@@ -714,6 +869,12 @@ const InventarioCajas = (() => {
     $('#invCancelarInicio').addEventListener('click',()=>$('#invInicioDialog').close());
     $('#invActualizar').addEventListener('click',actualizarInventario);
     $('#invSonido').addEventListener('click',alternarSonido);
+    $('#invWhatsapp').addEventListener('click',abrirWhatsappConfig);
+    $('#invWhatsappForm').addEventListener('submit',guardarWAConfig);
+    $('#waCerrar').addEventListener('click',()=>$('#invWhatsappDialog').close());
+    $('#waCargarGrupos').addEventListener('click',cargarGruposWhatsapp);
+    $('#waProbar').addEventListener('click',probarWhatsapp);
+    $('#waGrupo').addEventListener('change',()=>{if($('#waGrupo').value)$('#waGrupoManual').value='';});
     $('#invGrid').addEventListener('click',e=>{const button=e.target.closest('[data-config-marca]');if(button)abrirConfig(Number(button.dataset.configMarca));});
     $('#invConfigForm').addEventListener('submit',guardarConfig);
     $('#invCerrarConfig').addEventListener('click',()=>$('#invConfigDialog').close());
@@ -738,7 +899,7 @@ const InventarioCajas = (() => {
       return;
     }
 
-    const list = data || [];
+    const list = (data || []).filter(m=>MARCAS_INVENTARIO_PERMITIDAS.has(InventarioCajas.normalizar(m.nombre)));
     inventarioMarcas=[...new Set(list.map(m=>m.nombre))];
     if(!inventarioMarcas.length){invEstado("No hay marcas activas en el catálogo.","muted");$("#invGrid").innerHTML="<p>No hay marcas activas para vigilar.</p>";}
     entMarca.innerHTML = list.map(m=>`<option value="${invText(m.nombre)}">${invText(m.nombre)}</option>`).join("");
@@ -846,13 +1007,14 @@ const InventarioCajas = (() => {
       return;
     }
 
-    resumenTablaBody.innerHTML = (marcas||[]).map(r=>{
+    const marcasFiltradas=(marcas||[]).filter(r=>MARCAS_INVENTARIO_PERMITIDAS.has(InventarioCajas.normalizar(r.marca)));
+    resumenTablaBody.innerHTML = marcasFiltradas.map(r=>{
       const sCalc = (Number(r.si)||0) + (Number(r.e)||0) - (Number(r.cf)||0);
       const sShow = (r.s ?? sCalc);
       const klass = Number(sShow) < 0 ? "danger" : "ok";
       return `
         <tr>
-          <td>${r.marca}</td>
+          <td>${invText(r.marca)}</td>
           <td>${r.si ?? 0}</td>
           <td>${r.e ?? 0}</td>
           <td>${r.cf ?? 0}</td>
@@ -861,19 +1023,11 @@ const InventarioCajas = (() => {
       `;
     }).join("");
 
-    const { data: tots, error: e2 } = await sb
-      .from("v_menudo_resumen_totales")
-      .select("*")
-      .eq("fecha", f)
-      .maybeSingle();
-
-    if(e2){
-      console.error(e2);
-      toast(entStatus, `❌ Totales no disponibles: ${errMsg(e2)}`);
-    }
-
-    const t = tots || { si_total:0, e_total:0, cf_total:0, s_total:0 };
-    totalesBox.textContent = `Totales — SI: ${t.si_total||0} · E: ${t.e_total||0} · CF: ${t.cf_total||0} · S: ${t.s_total||0}`;
+    const t=marcasFiltradas.reduce((acc,r)=>{
+      const sCalc=(Number(r.si)||0)+(Number(r.e)||0)-(Number(r.cf)||0);
+      acc.si_total+=Number(r.si)||0;acc.e_total+=Number(r.e)||0;acc.cf_total+=Number(r.cf)||0;acc.s_total+=Number(r.s??sCalc)||0;return acc;
+    },{si_total:0,e_total:0,cf_total:0,s_total:0});
+    totalesBox.textContent = `Totales — SI: ${t.si_total} · E: ${t.e_total} · CF: ${t.cf_total} · S: ${t.s_total}`;
 
     const { data: al, error: e3 } = await sb
       .from("v_menudo_alertas")
@@ -884,8 +1038,9 @@ const InventarioCajas = (() => {
       console.error(e3);
       alertasBox.textContent = "Alertas: (error al consultar)";
     } else {
-      alertasBox.textContent = (al && al.length>0)
-        ? `Alertas: ${al.length} (revisar salidas negativas)`
+      const alFiltradas=(al||[]).filter(r=>MARCAS_INVENTARIO_PERMITIDAS.has(InventarioCajas.normalizar(r.marca)));
+      alertasBox.textContent = alFiltradas.length>0
+        ? `Alertas: ${alFiltradas.length} (revisar salidas negativas)`
         : "Alertas: —";
     }
   }
@@ -905,10 +1060,11 @@ const InventarioCajas = (() => {
       return;
     }
 
-    const lineas = (marcas || []).map(r => `${r.marca}: ${r.cf ?? 0} cajas`);
+    const lineas = (marcas || []).filter(r=>MARCAS_INVENTARIO_PERMITIDAS.has(InventarioCajas.normalizar(r.marca))).map(r => `${r.marca}: ${r.cf ?? 0} cajas`);
     openWA(lineas.length ? lineas.join("\n") : "Sin datos de CF por marca");
   }
 
+  cargarWAConfigLocal();
   iniciarInventario();
 
   // Eventos
