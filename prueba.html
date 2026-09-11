@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>VDC360° – Inventario de cajas en bodega</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{--ink:#111;--brand:#0a7a3b;--muted:#6b7280;--bg:#f6f7f8;--card:#fff}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto}
+    header{background:var(--brand);color:#fff;padding:14px 18px}
+    header h1{margin:0;font-size:18px}
+    main{max-width:1100px;margin:0 auto;padding:16px;display:grid;gap:16px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .card{background:var(--card);border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);padding:16px}
+    h2{margin:0 0 10px 0;font-size:18px}
+    label{display:block;margin-top:10px;font-size:14px;color:#111}
+    input,select,button,textarea{
+      width:100%;padding:10px;margin-top:6px;font-size:14px;border:1px solid #e5e7eb;border-radius:8px;background:#fff
+    }
+    .row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    .btn{cursor:pointer}
+    .btn-primary{background:var(--brand);color:#fff;border:none}
+    .btn-muted{background:#111;color:#fff;border:none}
+    .btn-ghost{background:#fff;border:1px solid #e5e7eb;color:#111}
+    .muted{color:var(--muted);font-size:13px}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{padding:10px;border-bottom:1px solid #eef0f2;text-align:left;font-size:14px}
+    th{background:#fafafa}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#eef7f0;color:#0a7a3b;font-size:12px}
+    .flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .right{margin-left:auto}
+    .danger{color:#b91c1c}
+    .ok{color:#166534}
+    .center{text-align:center}
+    .mini{font-size:12px}
+    .sep{height:1px;background:#eee;margin:10px 0}
+    @media (max-width: 920px){ .row{grid-template-columns:1fr} }
+
+    /* ✅ Botón flotante regresar */
+    .fab-back{
+      position:fixed;
+      right:16px;
+      bottom:16px;
+      z-index:9999;
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      padding:12px 14px;
+      border-radius:999px;
+      background:rgba(10,122,59,.98);
+      color:#fff;
+      text-decoration:none;
+      font-weight:900;
+      box-shadow:0 14px 30px rgba(0,0,0,.20);
+      border:1px solid rgba(255,255,255,.18);
+      transition: transform .15s ease, filter .15s ease, box-shadow .15s ease;
+      user-select:none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .fab-back:hover{ transform: translateY(-1px); filter:brightness(1.03); box-shadow:0 18px 38px rgba(0,0,0,.22); }
+    .fab-back:active{ transform: translateY(0px) scale(.99); }
+    .fab-ico{
+      width:34px;height:34px;border-radius:999px;
+      display:grid;place-items:center;
+      background:rgba(255,255,255,.18);
+      border:1px solid rgba(255,255,255,.18);
+      flex:0 0 auto;
+    }
+    .fab-txt{line-height:1.05}
+    .fab-txt small{display:block;opacity:.9;font-weight:800;font-size:11px}
+    .fab-txt span{display:block;font-size:13px}
+    @media (max-width: 520px){
+      .fab-txt span{display:none;} /* en celular deja solo el "Central" y el icono */
+      .fab-back{padding:12px}
+    }
+
+    .inv-card{border-top:4px solid var(--brand)}
+    .inv-head{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:flex-start}
+    .inv-head h2{font-size:23px;margin-bottom:6px}
+    .inv-head p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+    .inv-toolbar{display:flex;gap:8px;flex-wrap:wrap}.inv-toolbar button{width:auto;margin:0}
+    .inv-sources{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0;font-size:13px}
+    .inv-sources span{padding:6px 9px;background:#f1f5f9;border-radius:6px}
+    .inv-sources [data-state=ok]{background:#e8f5ed;color:#166534}.inv-sources [data-state=error]{background:#fee2e2;color:#991b1b}
+    .inv-status{font-size:14px;line-height:1.5;margin:10px 0}
+    .inv-kpis{display:flex;gap:22px;flex-wrap:wrap;padding:14px 0;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;margin:14px 0}
+    .inv-kpis div{font-size:14px}.inv-kpis b{font-size:25px;display:block;margin-bottom:4px}
+    .inv-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr));gap:14px}
+    .inv-brand{border:1px solid #dce4e0;border-radius:12px;padding:16px;background:#fff}
+    .inv-brand-top{display:flex;gap:8px;justify-content:space-between;align-items:flex-start}
+    .inv-brand h3{margin:0;font-size:18px;overflow-wrap:anywhere}
+    .inv-badge{font-size:13px;padding:4px 8px;border-radius:6px;background:#edf2f7;white-space:nowrap}
+    .inv-brand[data-state=normal] .inv-badge{color:#166534;background:#dcfce7}
+    .inv-brand[data-state=bajo]{border-color:#d8a338}.inv-brand[data-state=bajo] .inv-badge{color:#854d0e;background:#fef3c7}
+    .inv-brand[data-state=agotado],.inv-brand[data-state=revisar]{border-color:#d97777}
+    .inv-brand[data-state=agotado] .inv-badge,.inv-brand[data-state=revisar] .inv-badge{color:#991b1b;background:#fee2e2}
+    .inv-value{font-size:38px;font-weight:800;margin:16px 0 6px;overflow-wrap:anywhere}
+    .inv-value span{font-weight:400;font-size:14px;margin-left:8px}
+    .inv-meta,.inv-note{font-size:13px;color:#56636c;line-height:1.5}.inv-meta{margin-bottom:12px}
+    .inv-problem{color:#9a3412;font-size:14px;line-height:1.4;margin:10px 0}
+    .inv-actions button{font-size:14px;cursor:pointer}
+    .inv-actions details{margin-top:12px;font-size:14px}.inv-actions summary{cursor:pointer;color:#166534;padding:5px 0}
+    .inv-actions dl{margin-bottom:0}.inv-actions dl div{display:flex;gap:12px;justify-content:space-between;padding:5px 0;border-bottom:1px solid #eef0f2}
+    .inv-actions dd{margin:0;font-variant-numeric:tabular-nums}
+    .inv-banner{font-size:14px;line-height:1.5;padding:12px;background:#fffbeb;border:1px solid #e8bc62;border-radius:8px;margin:12px 0}
+    .inv-banner[data-severity=critica]{background:#fef2f2;border-color:#dc8c8c;color:#991b1b}
+    .inv-banner[hidden]{display:none}
+    .inv-stale .inv-value{text-decoration:line-through;color:#64748b}
+    .inv-stale .inv-brand:before{content:'LECTURA ANTERIOR';display:block;font-size:12px;font-weight:700;color:#9a3412;margin-bottom:10px}
+    .inv-bottom{font-size:13px;color:#56636c;margin-top:16px;line-height:1.5}
+    #invConfigDialog{max-width:650px;width:calc(100% - 32px);max-height:90vh;overflow:auto;border:1px solid #dce4e0;border-radius:14px;padding:22px}
+    #invConfigDialog::backdrop{background:rgba(0,0,0,.45)}
+    #invConfigDialog h2{font-size:21px}#invConfigDialog textarea{min-height:120px;resize:vertical;line-height:1.5}
+    #invConfigDialog p{font-size:14px;line-height:1.5}#invConfigDialog label{font-weight:600}
+    .inv-dialog-actions{display:flex;gap:10px;margin-top:16px}
+    button:disabled{opacity:.55;cursor:wait}
+    button:focus-visible,summary:focus-visible{outline:3px solid #218856;outline-offset:3px}
+    @media(max-width:520px){.inv-head h2{font-size:21px}.inv-toolbar{width:100%}.inv-toolbar button{flex:1}.inv-kpis{gap:16px}.inv-kpis div{flex:1;min-width:75px}.row-3{grid-template-columns:1fr}.row-2{gap:8px}main{padding:10px}.card{padding:13px}}
+
+  </style>
+</head>
+<body>
+<header>
+  <h1>VDC360° · Cajas de Menudo</h1>
+</header>
+
+<main>
+
+  <section class="card inv-card" aria-labelledby="invTitulo">
+    <div class="inv-head"><div><h2 id="invTitulo">Cajas disponibles en bodega</h2><p>Entradas, ventas directas y envíos a mostrador por marca.</p></div>
+      <div class="inv-toolbar"><button type="button" id="invActualizar" class="btn btn-primary">Actualizar existencias</button><button type="button" id="invSonido" class="btn btn-ghost" aria-pressed="false">Activar sonido</button></div>
+    </div>
+    <div class="inv-sources"><span id="invFuenteEntradas">Entradas: pendiente</span><span id="invFuenteNotas">Notas: pendiente</span><span id="invFuenteMostrador">Mostrador: pendiente</span></div>
+    <p id="invEstado" class="inv-status muted" role="status" aria-live="polite">Preparando inventario…</p>
+    <div id="invInstalacion" class="inv-banner" hidden><b>Preparación inicial pendiente.</b> Activa la configuración con el archivo activar_alertas_inventario.sql entregado junto a esta página. Después confirma los productos de cada marca.</div>
+    <div class="inv-kpis"><div><b id="invVigiladas">—</b>Marcas</div><div><b id="invReponer">—</b>Por reponer / agotadas</div><div><b id="invRevisar">—</b>Por revisar</div></div>
+    <div id="invAlerta" class="inv-banner" role="alert" hidden></div>
+    <div id="invPendientes" class="inv-banner" hidden><b>Productos de cajas sin vincular</b><p>Estos registros no se incluyeron en ninguna marca. Revísalos antes de usar los saldos para decidir una compra.</p><ul id="invPendientesLista"></ul></div>
+    <div id="invGrid" class="inv-grid"><p class="muted">Las existencias aparecerán después de leer las tres fuentes.</p></div>
+    <p class="inv-bottom"><span id="invUltima">Sin lectura completa.</span><br>Consulta automática cada 30 segundos mientras esta página esté visible. El sonido requiere activarse en este equipo. Actualizar esta página no vuelve a descontar movimientos.</p>
+  </section>
+  <dialog id="invConfigDialog" aria-labelledby="invConfigTitulo"><form id="invConfigForm">
+    <h2 id="invConfigTitulo">Configurar marca</h2><input type="hidden" id="invConfigMarca">
+    <p id="invConfigAviso" class="muted"></p>
+    <div class="row-2"><div><label for="invMinimo">Avisar al llegar a estas cajas</label><input type="number" id="invMinimo" min="0" step="0.001" required></div><div><label for="invKgCaja">Kilos por caja</label><input type="number" id="invKgCaja" min="0.001" step="0.001" placeholder="Confirmar peso"></div></div>
+    <p class="muted">Las piezas capturadas se tomarán como cajas. Si solo hay kilos, se convertirán a cajas equivalentes con este peso; sin peso confirmado, ese saldo quedará pendiente.</p>
+    <label for="invProductosNotas">Nombres de producto en notas</label><textarea id="invProductosNotas" required spellcheck="false"></textarea>
+    <label for="invProductosMostrador">Nombres de producto en mostrador</label><textarea id="invProductosMostrador" required spellcheck="false"></textarea>
+    <p class="muted">Un nombre por renglón. Solo vincula presentaciones que correspondan a esta marca de cajas. Acentos, mayúsculas y guiones no cambian la coincidencia.</p>
+    <p id="invConfigError" class="danger" role="alert"></p><div class="inv-dialog-actions"><button type="submit" id="invGuardarConfig" class="btn btn-primary">Guardar configuración</button><button type="button" id="invCerrarConfig" class="btn btn-ghost">Cerrar</button></div>
+  </form></dialog>
+
+  <div class="card">
+    <div class="flex">
+      <div class="flex" style="gap:6px">
+        <label for="fechaTrabajo" class="muted">Fecha de trabajo</label>
+        <input id="fechaTrabajo" type="date" />
+      </div>
+      <span class="right muted">SI = CF día anterior · E = entradas (COUNT) · CF = conteo final</span>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <h2>📦 Registrar Entrada</h2>
+      <div class="row-2">
+        <div>
+          <label>Marca</label>
+          <select id="entMarca"></select>
+        </div>
+        <div>
+          <label>Cantidad de cajas (filas a insertar)</label>
+          <input id="entCantidad" type="number" min="1" step="1" value="1" />
+        </div>
+      </div>
+
+      <div class="row-3">
+        <div>
+          <label>Proveedor</label>
+          <input id="entProveedor" placeholder="(opcional)" />
+        </div>
+        <div>
+          <label>Lote / Ref</label>
+          <input id="entLote" placeholder="(opcional)" />
+        </div>
+        <div>
+          <label>Operador</label>
+          <input id="entOperador" placeholder="(opcional)" />
+        </div>
+      </div>
+
+      <div class="flex" style="margin-top:12px">
+        <button class="btn btn-primary" id="btnGuardarEntrada" type="button">Guardar Entrada</button>
+        <button class="btn btn-ghost" id="btnWAEntrada" type="button">WhatsApp Entrada</button>
+        <span class="muted right" id="entStatus">—</span>
+      </div>
+
+      <p class="mini muted">
+        Nota: en tu tabla <b>cajas_menudo_entrada</b> cada fila equivale a <b>1 caja</b>.
+        Si capturas “10”, insertamos 10 filas.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>🧮 Cierre Diario (Conteo Final por marca)</h2>
+      <div class="row-2">
+        <div>
+          <label>Encargado del conteo</label>
+          <input id="cfEncargado" placeholder="Nombre" />
+        </div>
+        <div>
+          <label>Fecha del conteo</label>
+          <input id="cfFecha" type="date" />
+        </div>
+      </div>
+
+      <p class="muted">Captura el conteo cuando terminen los movimientos del día. Deja en blanco las marcas que no contaste; escribe 0 únicamente si confirmaste que no queda ninguna caja.</p>
+      <table id="cfTabla">
+        <thead>
+          <tr>
+            <th>Marca</th>
+            <th class="center">CF (cajas)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+
+      <div class="flex" style="margin-top:12px">
+        <button class="btn btn-primary" id="btnGuardarCF" type="button">Guardar Conteo</button>
+        <button class="btn btn-ghost" id="btnWAResumen" type="button">WhatsApp CF por marca</button>
+        <span class="muted right" id="cfStatus">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="flex">
+      <h2>📊 Resumen Diario por Marca</h2>
+      <button class="btn btn-muted right" id="btnActualizarResumen" type="button">Actualizar</button>
+    </div>
+
+    <table id="resumenTabla">
+      <thead>
+        <tr>
+          <th>Marca</th>
+          <th>SI</th>
+          <th>E</th>
+          <th>CF</th>
+          <th>S = SI+E–CF</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="sep"></div>
+    <div class="flex">
+      <div id="totalesBox" class="pill">Totales — SI: 0 · E: 0 · CF: 0 · S: 0</div>
+      <span class="right muted" id="alertasBox">Alertas: —</span>
+    </div>
+  </div>
+</main>
+
+<!-- ✅ Botón flotante: Regresar al Central -->
+<a class="fab-back" href="https://marcianoper.github.io/vdc-central/" title="Regresar a VDC 360° Central">
+  <span class="fab-ico">⬅️</span>
+  <span class="fab-txt">
+    <small>Regresar</small>
+    <span>VDC Central</span>
+  </span>
+</a>
+
+<!-- ✅ Supabase como ESM (GitHub Pages friendly) -->
+<script type="module">
+  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+  const SUPABASE_URL = "https://bjebybdqcqscouxlinfd.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqZWJ5YmRxY3FzY291eGxpbmZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzMjQ3MTksImV4cCI6MjA3MTkwMDcxOX0.mQgWtiYEyJTiF04pdcLv63SqPNrU1Iehws0vKqr82O0";
+
+  // Anti doble-ejecución (extensiones / auto-reload)
+  const sb = window.__VDC360_SB ?? (window.__VDC360_SB = createClient(SUPABASE_URL, SUPABASE_ANON_KEY));
+
+
+  // Conexiones originales de notas y mostrador; cada clave conserva su proyecto.
+  const sbNotasInventario = createClient("https://bjebybdqcqscouxlinfd.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqZWJ5YmRxY3FzY291eGxpbmZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzMjQ3MTksImV4cCI6MjA3MTkwMDcxOX0.mQgWtiYEyJTiF04pdcLv63SqPNrU1Iehws0vKqr82O0", {auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+  const sbMostradorInventario = createClient("https://eqynjddcosvdqjzztznn.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVxeW5qZGRjb3N2ZHFqenp0em5uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMzYwMzIsImV4cCI6MjA3MTcxMjAzMn0.Q51wsGelUvxRfqsMYRY5JduCGyZ7s6AzOhqsRf3kOhk", {auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+
+// BEGIN INVENTARIO_ENGINE
+const InventarioCajas = (() => {
+  const normalizar = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
+  const numero = (value, label='Cantidad') => {
+    if(value===null || value===undefined || String(value).trim()==='' || !Number.isFinite(Number(value))) throw new Error(label+' no válida');
+    return Number(value);
+  };
+  const diaMexico = (value=new Date()) => {
+    const p = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(value));
+    const get = type => p.find(x=>x.type===type).value;
+    return `${get('year')}-${get('month')}-${get('day')}`;
+  };
+  const siguienteDia = day => new Date(Date.parse(day+'T12:00:00Z')+86400000).toISOString().slice(0,10);
+  const inicioUTC = day => new Date(day+'T00:00:00-06:00').toISOString();
+  function unicos(rows, fuente){
+    const ids=new Map(), out=[];
+    for(const row of rows){
+      if(row.id===null || row.id===undefined){out.push(row);continue;}
+      const key=String(row.id), signature=JSON.stringify(row);
+      if(ids.has(key)){
+        if(ids.get(key)!==signature) throw new Error('Los datos de '+fuente+' cambiaron durante la lectura. Actualiza de nuevo.');
+        continue;
+      }
+      ids.set(key,signature);out.push(row);
+    }
+    return out;
+  }
+  function basePara(marca,conteos,hoy){
+    const rows=conteos.filter(r=>normalizar(r.marca)===normalizar(marca) && /^\d{4}-\d{2}-\d{2}$/.test(r.fecha_conteo||'') && r.fecha_conteo<hoy);
+    if(!rows.length) return {error:'Falta un conteo de cierre anterior a hoy.'};
+    const day=rows.reduce((a,r)=>r.fecha_conteo>a?r.fecha_conteo:a,'');
+    let latest=rows.filter(r=>r.fecha_conteo===day);
+    if(latest.length>1){
+      if(latest.every(r=>r.created_at && Number.isFinite(Date.parse(r.created_at)))){
+        const max=Math.max(...latest.map(r=>Date.parse(r.created_at)));
+        latest=latest.filter(r=>Date.parse(r.created_at)===max);
+      }
+      if(latest.length>1 && latest.every(r=>/^\d+$/.test(String(r.id)))){
+        const max=latest.reduce((a,r)=>BigInt(r.id)>a?BigInt(r.id):a,0n);
+        latest=latest.filter(r=>BigInt(r.id)===max);
+      }
+    }
+    try{
+      const values=latest.map(r=>numero(r.cantidad_reportada,'Conteo'));
+      if(values.some(x=>x<0 || !Number.isInteger(x))) return {error:'El conteo de cierre no es una cantidad válida de cajas.'};
+      if(new Set(values).size!==1) return {error:'Hay conteos distintos para el cierre '+day+'. Revisa cuál es correcto.'};
+      return {fecha:day,cajas:values[0]};
+    }catch(error){return {error:error.message};}
+  }
+  function sugerencia(marca){
+    const n=normalizar(marca);
+    const sets=[
+      ['NATIONAL',27.22,['Caja Menudo National','Caja Menudo National X KG','CAJA_MENUDO_NATIONAL','Caja Azul','Caja Azul Completa']],
+      ['CANADIAN',27.28,['Caja Menudo Canadian','Caja Menudo Canadian X KG','Menudo Canadian','MENUDO_CANADIAN','Caja Canadian','Caja Canadian Completa']],
+      ['WASHINGTON',27.22,['Caja Washington','CAJA_WASHINGTON','Caja Washington Completa']],
+      ['EXCEL',27.22,['Caja Excel','CAJA_EXCEL']],
+      ['SWIFT',null,['Caja Menudo Swift','CAJA_MENUDO_SWIFT']],
+      ['VISCERAS',null,['Caja menudo vísceras','CAJA_MENUDO_VISCERAS']]
+    ];
+    const match=sets.find(([token])=>n.split(' ').includes(token));
+    return {marca,minimo_cajas:10,kg_por_caja:match?.[1]??null,productos_notas:match?.[2]??[],productos_mostrador:match?.[2]??[]};
+  }
+  function validarConfig(c,others=[]){
+    if(!String(c.marca||'').trim()) throw new Error('Falta la marca.');
+    if(numero(c.minimo_cajas,'Mínimo de cajas')<0) throw new Error('El mínimo no puede ser negativo.');
+    if(c.kg_por_caja!==null && numero(c.kg_por_caja,'Peso por caja')<=0) throw new Error('El peso por caja debe ser mayor a cero.');
+    for(const field of ['productos_notas','productos_mostrador']){
+      if(!Array.isArray(c[field]) || !c[field].length || c[field].some(x=>!normalizar(x))) throw new Error('Captura los nombres de producto de notas y mostrador.');
+      for(const name of c[field]){
+        const conflict=others.find(o=>normalizar(o.marca)!==normalizar(c.marca) && (o[field]||[]).some(x=>normalizar(x)===normalizar(name)));
+        if(conflict) throw new Error('El producto «'+name+'» ya está vinculado a '+conflict.marca+'.');
+      }
+    }
+    return true;
+  }
+  function cantidadCajas(row,config,source){
+    const pieces=row.piezas;
+    if(pieces!==null && pieces!==undefined && pieces!=='' && numero(pieces,'Piezas')!==0){
+      const boxes=numero(pieces,'Piezas');
+      if(boxes<0 || !Number.isInteger(boxes)) throw new Error('Las piezas deben ser cajas completas, sin valores negativos.');
+      const rawKg=source==='notas'?row.cantidad:row.kilos;
+      if(rawKg!==null && rawKg!==undefined && rawKg!==''){
+        const kg=numero(rawKg,'Kilos');
+        if(kg<0) throw new Error('Hay kilos negativos; revisa la captura.');
+        if(config.kg_por_caja && kg>0 && Math.abs(kg-boxes*Number(config.kg_por_caja))>Math.max(0.05,boxes*0.01)){
+          throw new Error('Las piezas y los kilos no coinciden con el peso por caja configurado. Confirma si son cajas completas o venta por kilos');
+        }
+      }
+      return {cajas:boxes,estimado:false};
+    }
+    const kg=numero(source==='notas'?row.cantidad:row.kilos,'Kilos');
+    if(kg<0) throw new Error('Hay kilos negativos; revisa la captura.');
+    if(kg===0) return {cajas:0,estimado:false};
+    if(!config.kg_por_caja || numero(config.kg_por_caja)<=0) throw new Error('Falta el peso por caja para convertir una salida o devolución registrada solo en kilos.');
+    return {cajas:kg/Number(config.kg_por_caja),estimado:true};
+  }
+  function calcular({marcas,conteos,entradas,notas,envios,devoluciones,configuraciones,hoy=diaMexico()}){
+    const configs=new Map(configuraciones.map(c=>[normalizar(c.marca),c]));
+    const cs=unicos(conteos,'conteos');
+    const result=marcas.map(marca=>({marca,base:basePara(marca,cs,hoy),config:configs.get(normalizar(marca)),entradas:0,notas:0,envios:0,devoluciones:0,estimado:false,problemas:[],movimientos:[]}));
+    const aliases={notas:new Map(),mostrador:new Map()}, conflicts=new Set();
+    for(const item of result){
+      if(item.base.error) item.problemas.push(item.base.error);
+      if(!item.config){item.problemas.push('Confirma productos y mínimo de aviso.');continue;}
+      try{validarConfig(item.config);}catch(error){item.problemas.push(error.message);continue;}
+      for(const [source,field] of [['notas','productos_notas'],['mostrador','productos_mostrador']]){
+        for(const name of item.config[field]){
+          const k=normalizar(name), existing=aliases[source].get(k);
+          if(existing && existing!==item){conflicts.add(existing);conflicts.add(item);}
+          else aliases[source].set(k,item);
+        }
+      }
+    }
+    for(const item of conflicts) item.problemas.push('Un mismo producto está vinculado a varias marcas. Corrige la configuración.');
+    const pendientes=new Map();
+    const possibleBox=name=>/\b(CAJA|CAJAS|NATIONAL|CANADIAN|WASHINGTON|EXCEL|SWIFT)\b/.test(normalizar(name));
+    const firstBase=result.filter(r=>!r.base.error).map(r=>r.base.fecha).sort()[0]||hoy;
+    for(const row of unicos(entradas,'entradas')){
+      const item=result.find(r=>normalizar(r.marca)===normalizar(row.marca));
+      if(!item || item.base.error || row.fecha_entrada<=item.base.fecha || row.fecha_entrada>hoy) continue;
+      item.entradas+=1; // En la tabla existente cada fila es exactamente una caja.
+    }
+    for(const [source,rows] of [['notas',notas],['envios',envios],['devoluciones',devoluciones]]){
+      for(const row of unicos(rows,source)){
+        const aliasSource=source==='notas'?'notas':'mostrador';
+        const item=aliases[aliasSource].get(normalizar(row.producto));
+        let day;
+        try{if(source==='notas' && !row.created_at) throw new Error('Fecha faltante');day=source==='notas'?diaMexico(row.created_at):row.fecha;if(!/^\d{4}-\d{2}-\d{2}$/.test(day||'')) throw new Error('Fecha inválida');}
+        catch(error){if(item)item.problemas.push('Hay un movimiento sin fecha válida.');continue;}
+        if(!item){
+          if(day>firstBase && day<=hoy && possibleBox(row.producto)){
+            const key=aliasSource+'|'+normalizar(row.producto);
+            const prev=pendientes.get(key)||{fuente:aliasSource,producto:row.producto,registros:0};prev.registros++;pendientes.set(key,prev);
+          }
+          continue;
+        }
+        if(item.base.error || day<=item.base.fecha || day>hoy) continue;
+        try{
+          const q=cantidadCajas(row,item.config,source);
+          item[source]+=q.cajas;item.estimado ||= q.estimado;
+          item.movimientos.push({id:row.id,fuente:source,fecha:day,producto:row.producto,cajas:q.cajas,estimado:q.estimado});
+        }catch(error){item.problemas.push(error.message+' ('+row.producto+', '+day+').');}
+      }
+    }
+    for(const item of result){
+      item.problemas=[...new Set(item.problemas)];
+      if(item.problemas.length){item.disponible=null;item.estado='pendiente';continue;}
+      const value=item.base.cajas+item.entradas-item.envios-item.notas+item.devoluciones;
+      item.disponible=Math.round(value*1e8)/1e8;
+      item.estado=item.disponible<0?'revisar':item.disponible===0?'agotado':item.disponible<=Number(item.config.minimo_cajas)?'bajo':'normal';
+    }
+    return {marcas:result,pendientes:[...pendientes.values()]};
+  }
+  return {normalizar,numero,diaMexico,siguienteDia,inicioUTC,unicos,basePara,sugerencia,validarConfig,cantidadCajas,calcular};
+})();
+// END INVENTARIO_ENGINE
+
+  const $ = (sel) => document.querySelector(sel);
+
+  function formatDateISO(d){
+    const x = new Date(d);
+    const tz = x.getTimezoneOffset() * 60000;
+    return new Date(x - tz).toISOString().slice(0,10);
+  }
+  function todayISO(){ return formatDateISO(new Date()); }
+
+  function toast(el, msg){
+    if(!el) return;
+    el.textContent = msg;
+    clearTimeout(el.__t);
+    el.__t = setTimeout(()=>{ el.textContent="—"; }, 4500);
+  }
+  function errMsg(e){ return e?.message || e?.hint || e?.details || "Error desconocido"; }
+
+  function openWA(text){
+    const msg = encodeURIComponent(text);
+    const url = `https://wa.me/?text=${msg}`;
+    const url2 = `https://api.whatsapp.com/send?text=${msg}`;
+    const win = window.open(url, "_blank");
+    setTimeout(()=>{ if(!win || win.closed) window.open(url2, "_blank"); }, 700);
+  }
+
+  // UI refs
+  const fechaTrabajo = $("#fechaTrabajo");
+  const entMarca = $("#entMarca");
+  const entCantidad = $("#entCantidad");
+  const entProveedor = $("#entProveedor");
+  const entLote = $("#entLote");
+  const entOperador = $("#entOperador");
+  const entStatus = $("#entStatus");
+
+  const cfFecha = $("#cfFecha");
+  const cfEncargado = $("#cfEncargado");
+  const cfTablaBody = $("#cfTabla tbody");
+  const cfStatus = $("#cfStatus");
+
+  const resumenTablaBody = $("#resumenTabla tbody");
+  const totalesBox = $("#totalesBox");
+  const alertasBox = $("#alertasBox");
+
+  fechaTrabajo.value = todayISO();
+  cfFecha.value = todayISO();
+
+  const TABLA_CONFIG_INVENTARIO='cajas_menudo_inventario_config';
+  let inventarioMarcas=[], inventarioConfiguraciones=[], inventarioUltimo=null, inventarioOcupado=false;
+  let inventarioSonido=false, inventarioAudio=null, inventarioAlertasPrevias=new Map();
+  let inventarioTimer=null, inventarioLeyendo=false;
+  const invText = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const invNum = value => Number(value).toLocaleString('es-MX',{maximumFractionDigits:2});
+  const invFecha = value => value ? value.split('-').reverse().join('/') : '—';
+  const invLabel = {normal:'Disponible',bajo:'Reponer',agotado:'Agotado',revisar:'Revisar saldo',pendiente:'Pendiente'};
+
+  async function leerCompleto(makeQuery,fuente){
+    const rows=[],size=1000;let start=0,totalEsperado=null;
+    while(start<100000){
+      let timer;
+      try{
+        const response=await Promise.race([
+          Promise.resolve(makeQuery().range(start,start+size-1)),
+          new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Se agotó el tiempo de espera.')),20000);})
+        ]);
+        if(response.error) throw response.error;
+        if(!Array.isArray(response.data)) throw new Error('Respuesta incompleta.');
+        if(Number.isInteger(response.count)){
+          if(totalEsperado!==null && totalEsperado!==response.count) throw new Error('Los registros cambiaron durante la consulta. Actualiza de nuevo.');
+          totalEsperado=response.count;
+        }
+        rows.push(...response.data);start+=response.data.length;
+        if(totalEsperado!==null && start>=totalEsperado) return rows;
+        if(!response.data.length){
+          if(totalEsperado!==null && start<totalEsperado) throw new Error('La lectura quedó incompleta.');
+          return rows;
+        }
+      }catch(error){throw Object.assign(new Error(fuente+': '+errMsg(error)),{code:error.code,fuente});}
+      finally{clearTimeout(timer);}
+    }
+    throw new Error(fuente+': demasiados registros para una lectura completa. No se calculó un saldo parcial.');
+  }
+  function invEstado(texto,tipo='muted'){
+    const el=$('#invEstado');el.textContent=texto;el.className='inv-status '+tipo;
+  }
+  function invFuente(id,text,tipo='pendiente'){
+    const el=$(id);el.textContent=text;el.dataset.state=tipo;
+  }
+  function pintarInventario(resultado){
+    inventarioUltimo=resultado;
+    const brands=resultado.marcas;
+    $('#invVigiladas').textContent=brands.length;
+    $('#invReponer').textContent=brands.filter(r=>['bajo','agotado'].includes(r.estado)).length;
+    $('#invRevisar').textContent=brands.filter(r=>['revisar','pendiente'].includes(r.estado)).length;
+    $('#invGrid').innerHTML=brands.map((r,i)=>{
+      const value=r.disponible===null?'—':invNum(r.disponible);
+      const terms=[['Conteo base',r.base.cajas],['Entradas',r.entradas],['Envíos a mostrador',r.envios],['Ventas en notas',r.notas],['Devoluciones',r.devoluciones]];
+      return `<article class="inv-brand" data-state="${r.estado}">
+        <div class="inv-brand-top"><h3>${invText(r.marca)}</h3><span class="inv-badge">${invLabel[r.estado]}</span></div>
+        <div class="inv-value">${value}<span>${r.estimado?'cajas equivalentes':'cajas'}</span></div>
+        <div class="inv-meta">Mínimo: <b>${r.config?invNum(r.config.minimo_cajas):'sin configurar'}</b> · Cierre base: ${invFecha(r.base.fecha)}</div>
+        ${r.estimado?'<p class="inv-note">Incluye movimientos convertidos de kilos. No es un conteo de cajas cerradas.</p>':''}
+        ${r.estado==='revisar'?'<p class="inv-problem">Las salidas superan la existencia calculada. Revisa entradas, productos y conteo.</p>':''}
+        ${r.problemas.map(p=>`<p class="inv-problem">${invText(p)}</p>`).join('')}
+        <div class="inv-actions"><button type="button" data-config-marca="${i}" class="btn btn-ghost">${r.config?'Configurar':'Confirmar productos y mínimo'}</button>
+          <details><summary>Ver cálculo</summary><dl>${terms.map(([label,num])=>`<div><dt>${label}</dt><dd>${num===undefined?'—':invNum(num)}</dd></div>`).join('')}</dl>
+          <p class="inv-note">Base + entradas − mostrador − notas + devoluciones.</p></details></div>
+      </article>`;
+    }).join('') || '<p class="muted">No hay marcas activas disponibles. Revisa el catálogo de marcas.</p>';
+    const missing=$('#invPendientes');missing.hidden=!resultado.pendientes.length;
+    $('#invPendientesLista').innerHTML=resultado.pendientes.map(p=>`<li><b>${invText(p.producto)}</b> · ${p.fuente==='notas'?'Notas':'Mostrador'} · ${p.registros} registro(s)</li>`).join('');
+    const lows=brands.filter(r=>['bajo','agotado','revisar'].includes(r.estado));
+    const alert=$('#invAlerta');alert.hidden=!lows.length;
+    alert.textContent=lows.map(r=>`${r.marca}: ${invNum(r.disponible)} ${r.estimado?'cajas equivalentes':'cajas'} — ${invLabel[r.estado]}`).join(' · ');
+    alert.dataset.severity=lows.some(r=>r.estado==='agotado'||r.estado==='revisar')?'critica':'baja';
+    let changed=false;
+    for(const r of brands){
+      const previous=inventarioAlertasPrevias.get(r.marca);
+      if(['bajo','agotado','revisar'].includes(r.estado) && previous!==r.estado) changed=true;
+      inventarioAlertasPrevias.set(r.marca,r.estado);
+    }
+    if(inventarioSonido && changed) sonarInventario();
+  }
+  async function actualizarInventario(){
+    if(inventarioOcupado || !inventarioMarcas.length) return;
+    inventarioOcupado=true;inventarioLeyendo=true;
+    const btn=$('#invActualizar');btn.disabled=true;
+    invEstado('Consultando existencias…');
+    try{
+      const hoy=InventarioCajas.diaMexico();
+      const [conteos,configResult]=await Promise.all([
+        leerCompleto(()=>sb.from('cajas_menudo_conteo_diario').select('*',{count:'exact'}).lt('fecha_conteo',hoy).order('fecha_conteo',{ascending:false}).order('marca',{ascending:true}),'Conteos'),
+        leerCompleto(()=>sb.from(TABLA_CONFIG_INVENTARIO).select('*',{count:'exact'}).order('marca'),'Configuración').then(data=>({data,error:null}),error=>({data:[],error}))
+      ]);
+      const configError=configResult.error;
+      if(configError && !['42P01','PGRST205','PGRST204'].includes(configError.code)) throw configError;
+      inventarioConfiguraciones=configResult.data;
+      $('#invInstalacion').hidden=!configError;
+      const fechas=inventarioMarcas.map(m=>InventarioCajas.basePara(m,conteos,hoy)).filter(b=>!b.error).map(b=>b.fecha).sort();
+      const desde=fechas.length?InventarioCajas.siguienteDia(fechas[0]):hoy;
+      const hasta=InventarioCajas.siguienteDia(hoy);
+      const results=await Promise.allSettled([
+        leerCompleto(()=>sb.from('cajas_menudo_entrada').select('*',{count:'exact'}).gte('fecha_entrada',desde).lte('fecha_entrada',hoy).order('fecha_entrada').order('id'),'Entradas'),
+        leerCompleto(()=>sbNotasInventario.from('notas_detalle').select('id,nota_id,producto,cantidad,piezas,created_at',{count:'exact'}).gte('created_at',InventarioCajas.inicioUTC(desde)).lt('created_at',InventarioCajas.inicioUTC(hasta)).order('created_at').order('id'),'Notas'),
+        leerCompleto(()=>sbMostradorInventario.from('mostrador_enviados').select('id,fecha,producto,kilos,piezas',{count:'exact'}).gte('fecha',desde).lte('fecha',hoy).order('fecha').order('id'),'Envíos a mostrador'),
+        leerCompleto(()=>sbMostradorInventario.from('mostrador_devueltos').select('id,fecha,producto,kilos',{count:'exact'}).gte('fecha',desde).lte('fecha',hoy).order('fecha').order('id'),'Devoluciones de mostrador')
+      ]);
+      invFuente('#invFuenteEntradas',results[0].status==='fulfilled'?'Entradas: leídas':'Entradas: sin conexión',results[0].status==='fulfilled'?'ok':'error');
+      invFuente('#invFuenteNotas',results[1].status==='fulfilled'?'Notas: leídas':'Notas: sin conexión',results[1].status==='fulfilled'?'ok':'error');
+      const mostradorOk=results[2].status==='fulfilled'&&results[3].status==='fulfilled';
+      invFuente('#invFuenteMostrador',mostradorOk?'Mostrador: leído':'Mostrador: lectura incompleta',mostradorOk?'ok':'error');
+      const failed=results.find(r=>r.status==='rejected');if(failed) throw failed.reason;
+      const [entradas,notas,envios,devoluciones]=results.map(r=>r.value);
+      const result=InventarioCajas.calcular({marcas:inventarioMarcas,conteos,entradas,notas,envios,devoluciones,configuraciones:inventarioConfiguraciones,hoy});
+      pintarInventario(result);
+      $('#invGrid').classList.remove('inv-stale');
+      $('#invUltima').textContent='Última lectura: '+new Date().toLocaleString('es-MX',{timeZone:'America/Mexico_City',dateStyle:'short',timeStyle:'medium'});
+      invEstado(configError?'Activa la configuración para vincular productos y alertas.':result.pendientes.length?'Hay productos de cajas sin vincular; los saldos pueden estar incompletos.':result.marcas.some(r=>r.estado==='pendiente')?'Completa los datos pendientes para calcular todas las marcas.':'Existencias actualizadas.',configError||result.pendientes.length||result.marcas.some(r=>r.estado==='pendiente')?'muted':'ok');
+    }catch(error){
+      console.error('Inventario:',error);
+      $('#invGrid').classList.add('inv-stale');
+      $('#invAlerta').hidden=true;$('#invReponer').textContent='—';$('#invRevisar').textContent='—';
+      invEstado('Sin actualizar. '+errMsg(error)+(inventarioUltimo?' Se conserva la última lectura; no la tomes como saldo actual.':' No se muestran existencias sin una lectura completa.'),'danger');
+    }finally{inventarioOcupado=false;inventarioLeyendo=false;btn.disabled=false;}
+  }
+  async function sonarInventario(){
+    try{
+      if(!inventarioAudio) return;
+      await inventarioAudio.resume();
+      const now=inventarioAudio.currentTime;
+      for(const delta of [0,0.22]){
+        const osc=inventarioAudio.createOscillator(),gain=inventarioAudio.createGain();
+        osc.type='sine';osc.frequency.value=880;
+        gain.gain.setValueAtTime(0,now+delta);gain.gain.linearRampToValueAtTime(0.14,now+delta+0.02);gain.gain.linearRampToValueAtTime(0,now+delta+0.16);
+        osc.connect(gain);gain.connect(inventarioAudio.destination);osc.start(now+delta);osc.stop(now+delta+0.17);
+      }
+    }catch(error){invEstado('No se pudo reproducir el sonido. Los avisos visuales siguen activos.','danger');}
+  }
+  async function alternarSonido(){
+    if(inventarioSonido){inventarioSonido=false;$('#invSonido').textContent='Activar sonido';$('#invSonido').setAttribute('aria-pressed','false');return;}
+    try{
+      const Audio=window.AudioContext||window.webkitAudioContext;
+      if(!Audio) throw new Error('Este navegador no permite el aviso sonoro.');
+      inventarioAudio ??= new Audio();await inventarioAudio.resume();inventarioSonido=true;
+      $('#invSonido').textContent='Sonido activo';$('#invSonido').setAttribute('aria-pressed','true');
+      await sonarInventario();
+    }catch(error){invEstado(errMsg(error),'danger');}
+  }
+  function abrirConfig(index){
+    const marca=inventarioMarcas[index];if(!marca)return;
+    const existing=inventarioConfiguraciones.find(c=>InventarioCajas.normalizar(c.marca)===InventarioCajas.normalizar(marca));
+    const c=existing||InventarioCajas.sugerencia(marca);
+    $('#invConfigMarca').value=marca;$('#invConfigTitulo').textContent='Configurar '+marca;
+    $('#invMinimo').value=c.minimo_cajas;$('#invKgCaja').value=c.kg_por_caja??'';
+    $('#invProductosNotas').value=c.productos_notas.join('\n');$('#invProductosMostrador').value=c.productos_mostrador.join('\n');
+    $('#invConfigAviso').textContent=existing?'Los nombres deben coincidir con los productos capturados.':'Valores sugeridos: confirma el mínimo, el peso y los nombres antes de guardarlos.';
+    $('#invConfigError').textContent='';$('#invConfigDialog').showModal();
+  }
+  async function guardarConfig(event){
+    event.preventDefault();const btn=$('#invGuardarConfig');if(btn.disabled)return;
+    const list=selector=>[...new Set($(selector).value.split('\n').map(x=>x.trim()).filter(Boolean))];
+    try{
+      const c={marca:$('#invConfigMarca').value,minimo_cajas:InventarioCajas.numero($('#invMinimo').value,'Mínimo'),kg_por_caja:$('#invKgCaja').value.trim()===''?null:InventarioCajas.numero($('#invKgCaja').value,'Peso por caja'),productos_notas:list('#invProductosNotas'),productos_mostrador:list('#invProductosMostrador'),updated_at:new Date().toISOString()};
+      InventarioCajas.validarConfig(c,inventarioConfiguraciones);btn.disabled=true;
+      const {error}=await sb.from(TABLA_CONFIG_INVENTARIO).upsert(c,{onConflict:'marca'});if(error)throw error;
+      $('#invConfigDialog').close();
+      // No se altera ninguna entrada, nota ni envío al configurar una alerta.
+      await actualizarInventario();
+    }catch(error){$('#invConfigError').textContent='No se guardó. '+errMsg(error);}
+    finally{btn.disabled=false;}
+  }
+  function iniciarInventario(){
+    $('#invActualizar').addEventListener('click',actualizarInventario);
+    $('#invSonido').addEventListener('click',alternarSonido);
+    $('#invGrid').addEventListener('click',e=>{const button=e.target.closest('[data-config-marca]');if(button)abrirConfig(Number(button.dataset.configMarca));});
+    $('#invConfigForm').addEventListener('submit',guardarConfig);
+    $('#invCerrarConfig').addEventListener('click',()=>$('#invConfigDialog').close());
+    inventarioTimer=setInterval(()=>{if(!document.hidden)actualizarInventario();},30000);
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)actualizarInventario();});
+    window.addEventListener('online',actualizarInventario);
+    window.addEventListener('pagehide',()=>{clearInterval(inventarioTimer);},{once:true});
+  }
+
+
+  async function loadMarcas(){
+    const { data, error } = await sb
+      .from("marcas_menudo")
+      .select("nombre")
+      .eq("activa", true)
+      .order("nombre", { ascending: true });
+
+    if(error){
+      console.error(error);
+      toast(entStatus, `❌ No se pudieron cargar marcas: ${errMsg(error)}`);
+      invEstado("No se pudo cargar el catálogo de marcas. Revisa la conexión y vuelve a abrir la página.","danger");
+      return;
+    }
+
+    const list = data || [];
+    inventarioMarcas=[...new Set(list.map(m=>m.nombre))];
+    if(!inventarioMarcas.length){invEstado("No hay marcas activas en el catálogo.","muted");$("#invGrid").innerHTML="<p>No hay marcas activas para vigilar.</p>";}
+    entMarca.innerHTML = list.map(m=>`<option value="${invText(m.nombre)}">${invText(m.nombre)}</option>`).join("");
+
+    cfTablaBody.innerHTML = list.map(m=>`
+      <tr>
+        <td>${invText(m.nombre)}</td>
+        <td class="center">
+          <input type="number" min="0" step="1" class="cf-input" data-marca="${invText(m.nombre)}" placeholder="0" />
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  async function guardarEntrada(){
+    const marca = entMarca.value;
+    const cantidad = Number(entCantidad.value);
+    if(!marca || !Number.isInteger(cantidad) || cantidad<1 || cantidad>10000){toast(entStatus,"Revisa la marca y captura entre 1 y 10,000 cajas completas.");return;}
+    const proveedor = entProveedor.value || null;
+    const lote = entLote.value || null;
+
+    const operador = (entOperador.value || "").trim();
+    const usuarioRegistro = operador || "sistema";
+    const f = fechaTrabajo.value || todayISO();
+
+    const rows = Array.from({length: cantidad}).map(() => ({
+      marca,
+      proveedor,
+      lote,
+      operador: operador || null,
+      usuario_registro: usuarioRegistro,
+      fecha_entrada: f,
+      cantidad_cajas: 1
+    }));
+
+    const { error } = await sb.from("cajas_menudo_entrada").insert(rows);
+    if(error){
+      console.error("Insert error:", error);
+      toast(entStatus, `❌ ${errMsg(error)}`);
+      return;
+    }
+    toast(entStatus, `✅ Guardadas ${cantidad} cajas de ${marca}`);
+  }
+
+  function waEntrada(){
+    const marca = entMarca.value;
+    const cantidad = Math.max(1, parseInt(entCantidad.value||"1",10));
+    const proveedor = entProveedor.value || "N/D";
+    const lote = entLote.value || "N/D";
+    const operador = entOperador.value || "N/D";
+    const f = fechaTrabajo.value || todayISO();
+
+    openWA([
+      "📦 ENTRADA REGISTRADA",
+      `Marca: ${marca}`,
+      `Proveedor: ${proveedor}`,
+      `Cantidad: ${cantidad} cajas`,
+      `Lote/Ref: ${lote}`,
+      `Fecha: ${f}`,
+      `Operador: ${operador}`
+    ].join("\n"));
+  }
+
+  async function guardarCF(){
+    const f = cfFecha.value || todayISO();
+    const encargado = (cfEncargado.value || "").trim() || null;
+
+    const inputs = Array.from(document.querySelectorAll(".cf-input")).filter(i=>i.value.trim()!=='');
+    if(inputs.some(i=>!Number.isInteger(Number(i.value)) || Number(i.value)<0)){
+      toast(cfStatus,"Revisa el conteo: usa cajas completas, sin negativos.");return;
+    }
+    const rows=inputs.map(i=>({marca:i.dataset.marca,cantidad_reportada:Number(i.value),fecha_conteo:f,usuario_conteo:encargado}));
+
+    if(rows.length === 0){
+      toast(cfStatus, "⚠️ Nada que guardar");
+      return;
+    }
+
+    const { error } = await sb.from("cajas_menudo_conteo_diario").insert(rows);
+    if(error){
+      console.error(error);
+      toast(cfStatus, `❌ ${errMsg(error)}`);
+      return;
+    }
+    toast(cfStatus, "✅ Conteo guardado. Será la base del inventario desde el día siguiente.");
+  }
+
+  async function actualizarResumen(){
+    const f = fechaTrabajo.value || todayISO();
+
+    const { data: marcas, error: e1 } = await sb
+      .from("v_menudo_resumen_diario")
+      .select("*")
+      .eq("fecha", f)
+      .order("marca", { ascending: true });
+
+    if(e1){
+      console.error(e1);
+      toast(entStatus, `❌ Resumen por marca no disponible: ${errMsg(e1)}`);
+      return;
+    }
+
+    resumenTablaBody.innerHTML = (marcas||[]).map(r=>{
+      const sCalc = (Number(r.si)||0) + (Number(r.e)||0) - (Number(r.cf)||0);
+      const sShow = (r.s ?? sCalc);
+      const klass = Number(sShow) < 0 ? "danger" : "ok";
+      return `
+        <tr>
+          <td>${r.marca}</td>
+          <td>${r.si ?? 0}</td>
+          <td>${r.e ?? 0}</td>
+          <td>${r.cf ?? 0}</td>
+          <td class="${klass}">${sShow ?? 0}</td>
+        </tr>
+      `;
+    }).join("");
+
+    const { data: tots, error: e2 } = await sb
+      .from("v_menudo_resumen_totales")
+      .select("*")
+      .eq("fecha", f)
+      .maybeSingle();
+
+    if(e2){
+      console.error(e2);
+      toast(entStatus, `❌ Totales no disponibles: ${errMsg(e2)}`);
+    }
+
+    const t = tots || { si_total:0, e_total:0, cf_total:0, s_total:0 };
+    totalesBox.textContent = `Totales — SI: ${t.si_total||0} · E: ${t.e_total||0} · CF: ${t.cf_total||0} · S: ${t.s_total||0}`;
+
+    const { data: al, error: e3 } = await sb
+      .from("v_menudo_alertas")
+      .select("*")
+      .eq("fecha", f);
+
+    if(e3){
+      console.error(e3);
+      alertasBox.textContent = "Alertas: (error al consultar)";
+    } else {
+      alertasBox.textContent = (al && al.length>0)
+        ? `Alertas: ${al.length} (revisar salidas negativas)`
+        : "Alertas: —";
+    }
+  }
+
+  async function waResumen(){
+    const f = fechaTrabajo.value || todayISO();
+
+    const { data: marcas, error } = await sb
+      .from("v_menudo_resumen_diario")
+      .select("marca, cf")
+      .eq("fecha", f)
+      .order("marca", { ascending: true });
+
+    if (error) {
+      console.error(error);
+      openWA(`CF por marca no disponible: ${errMsg(error)}`);
+      return;
+    }
+
+    const lineas = (marcas || []).map(r => `${r.marca}: ${r.cf ?? 0} cajas`);
+    openWA(lineas.length ? lineas.join("\n") : "Sin datos de CF por marca");
+  }
+
+  iniciarInventario();
+
+  // Eventos
+  $("#btnGuardarEntrada").addEventListener("click", async ()=>{
+    const btn=$("#btnGuardarEntrada");if(btn.disabled)return;btn.disabled=true;
+    try{await guardarEntrada();await Promise.all([actualizarResumen(),actualizarInventario()]);}finally{btn.disabled=false;}
+  });
+  $("#btnWAEntrada").addEventListener("click", waEntrada);
+  $("#btnGuardarCF").addEventListener("click", async ()=>{
+    const btn=$("#btnGuardarCF");if(btn.disabled)return;btn.disabled=true;
+    try{await guardarCF();await Promise.all([actualizarResumen(),actualizarInventario()]);}finally{btn.disabled=false;}
+  });
+  $("#btnWAResumen").addEventListener("click", waResumen);
+  $("#btnActualizarResumen").addEventListener("click", actualizarResumen);
+  fechaTrabajo.addEventListener("change", actualizarResumen);
+
+  // Boot
+  try{
+    await loadMarcas();
+    await Promise.all([actualizarResumen(),actualizarInventario()]);
+  } catch(e){
+    console.error(e);
+    toast(entStatus, `❌ ${errMsg(e)}`);
+  }
+</script>
+
+</body>
+</html>
