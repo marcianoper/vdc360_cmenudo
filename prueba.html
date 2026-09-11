@@ -136,7 +136,7 @@
     <div class="inv-inicio"><p id="invInicioTexto">Comprobando si ya existe un inicio guardado…</p><button id="invInicioBoton" type="button" class="btn btn-ghost">Iniciar inventario desde cero</button></div>
     <div class="inv-sources"><span id="invFuenteEntradas">Entradas: pendiente</span><span id="invFuenteNotas">Notas: pendiente</span><span id="invFuenteMostrador">Mostrador: pendiente</span></div>
     <p id="invEstado" class="inv-status muted" role="status" aria-live="polite">Preparando inventario…</p>
-    <div id="invInstalacion" class="inv-banner" hidden><b>Preparación inicial pendiente.</b> Ejecuta la versión actualizada de activar_alertas_inventario.sql, aunque ya hayas instalado la anterior. Luego configura las marcas e inicia el inventario desde cero.</div>
+    <div id="invInstalacion" class="inv-banner" data-severity="critica" hidden><b>Falta preparar Supabase.</b> Ejecuta el archivo <b>activar_alertas_inventario.sql</b> en el SQL Editor del proyecto de esta página y después recarga. <span id="invInstalacionDetalle"></span></div>
     <div class="inv-kpis"><div><b id="invVigiladas">—</b>Marcas</div><div><b id="invReponer">—</b>Por reponer / agotadas</div><div><b id="invRevisar">—</b>Por revisar</div></div>
     <div id="invAlerta" class="inv-banner" role="alert" hidden></div>
     <div id="invPendientes" class="inv-banner" hidden><b>Productos de cajas sin vincular</b><p>Estos registros no se incluyeron en ninguna marca. Revísalos antes de usar los saldos para decidir una compra.</p><ul id="invPendientesLista"></ul></div>
@@ -583,6 +583,8 @@ const InventarioCajas = (() => {
       ]);
       const installError=initial.find(r=>r.status==='rejected' && ['42P01','PGRST205','PGRST204','42703'].includes(r.reason.code));
       $('#invInstalacion').hidden=!installError;
+      $('#invInicioBoton').disabled=!!installError;
+      $('#invInstalacionDetalle').textContent=installError ? ` Error: ${errMsg(installError.reason)}` : '';
       const initialError=initial.find(r=>r.status==='rejected');if(initialError) throw initialError.reason;
       const nextInicio=initial[0].value[0]||null;
       if(inventarioInicio?.id!==nextInicio?.id){inventarioAlertasPrevias.clear();inventarioUltimo=null;$('#invGrid').innerHTML='';$('#invAlerta').hidden=true;}
@@ -619,7 +621,11 @@ const InventarioCajas = (() => {
       invEstado(result.pendientes.length?'Hay productos de cajas sin vincular; los saldos pueden estar incompletos.':result.marcas.some(r=>r.estado==='pendiente')?'Completa los datos pendientes para calcular todas las marcas.':'Existencias actualizadas.',result.pendientes.length||result.marcas.some(r=>r.estado==='pendiente')?'muted':'ok');
     }catch(error){
       console.error('Inventario:',error);
-      if(['42P01','PGRST205','PGRST204','42703'].includes(error.code)) $('#invInstalacion').hidden=false;
+      if(['42P01','PGRST205','PGRST204','42703'].includes(error.code)){
+        $('#invInstalacion').hidden=false;
+        $('#invInicioBoton').disabled=true;
+        $('#invInstalacionDetalle').textContent=` Error: ${errMsg(error)}`;
+      }
       $('#invGrid').classList.add('inv-stale');
       $('#invAlerta').hidden=true;$('#invReponer').textContent='—';$('#invRevisar').textContent='—';
       invEstado('Sin actualizar. '+errMsg(error)+(inventarioUltimo?' Se conserva la última lectura; no la tomes como saldo actual.':' No se muestran existencias sin una lectura completa.'),'danger');
@@ -737,7 +743,11 @@ const InventarioCajas = (() => {
   }
 
   async function guardarEntrada(){
-    if(!inventarioInicio){toast(entStatus,"Primero inicia el inventario desde cero.");return;}
+    if(!inventarioInicio){
+      const faltaInstalacion=!$('#invInstalacion').hidden;
+      toast(entStatus,faltaInstalacion?"Primero prepara Supabase con activar_alertas_inventario.sql.":"Primero inicia el inventario desde cero.");
+      return;
+    }
     const marca = entMarca.value;
     const cantidad = Number(entCantidad.value);
     if(!marca || !Number.isInteger(cantidad) || cantidad<1 || cantidad>10000){toast(entStatus,"Revisa la marca y captura entre 1 y 10,000 cajas completas.");return;}
