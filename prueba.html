@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <title>VDC360° – Inventario de cajas Canadian, Excel, National y Washington</title>
+  <title>VDC360° – Inventario de cajas + Washington pedacera</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root{--ink:#111;--brand:#0a7a3b;--muted:#6b7280;--bg:#f6f7f8;--card:#fff}
@@ -161,7 +161,7 @@
     <h2 id="invConfigTitulo">Configurar marca</h2><input type="hidden" id="invConfigMarca">
     <p id="invConfigAviso" class="muted"></p>
     <div class="row-2"><div><label for="invMinimo">Límite de alerta (cajas)</label><input type="number" id="invMinimo" min="0" step="0.001" required></div><div><label for="invKgCaja">Kilos por caja</label><input type="number" id="invKgCaja" min="0.001" step="0.001" placeholder="Confirmar peso"></div></div>
-    <p class="muted">Las piezas capturadas se tomarán como cajas. Si solo hay kilos, se convertirán a cajas equivalentes con este peso; sin peso confirmado, ese saldo quedará pendiente.</p>
+    <p class="muted">Las piezas capturadas se toman como cajas reales. National/Canadian/Excel pueden convertir kilos con peso fijo; Washington nunca convierte kilos a cajas porque su peso es variable.</p>
     <label for="invProductosNotas">Nombres de producto en notas</label><textarea id="invProductosNotas" required spellcheck="false"></textarea>
     <label for="invProductosMostrador">Nombres de producto en mostrador</label><textarea id="invProductosMostrador" required spellcheck="false"></textarea>
     <p class="muted">Un nombre por renglón. Solo vincula presentaciones que correspondan a esta marca de cajas. Acentos, mayúsculas y guiones no cambian la coincidencia.</p>
@@ -372,7 +372,7 @@ const InventarioCajas = (() => {
     const sets=[
       ['NATIONAL',27.22,['Caja Menudo National','Caja Menudo National X KG','CAJA_MENUDO_NATIONAL','Caja Azul','Caja Azul Completa']],
       ['CANADIAN',27.28,['Caja Menudo Canadian','Caja Menudo Canadian X KG','Menudo Canadian','MENUDO_CANADIAN','Caja Canadian','Caja Canadian Completa']],
-      ['WASHINGTON',27.22,['Caja Washington','CAJA_WASHINGTON','Caja Washington Completa']],
+      ['WASHINGTON',null,['Caja Washington','CAJA_WASHINGTON','Caja Washington Completa','Washington Entera','Washington Pedacera']],
       ['EXCEL',27.22,['Caja Excel','CAJA_EXCEL']]
     ];
     const match=sets.find(([token])=>n.split(' ').includes(token));
@@ -392,30 +392,68 @@ const InventarioCajas = (() => {
     return true;
   }
   function cantidadCajas(row,config,source){
+    const producto=normalizar(row.producto);
+    const marca=normalizar(config?.marca);
+    const esWashington=marca.includes('WASHINGTON');
+    const esPedacera=producto===normalizar('Washington Pedacera');
+    const esEntera=producto===normalizar('Washington Entera');
+
     const pieces=row.piezas;
-    if(pieces!==null && pieces!==undefined && pieces!=='' && numero(pieces,'Piezas')!==0){
+    const tienePiezas=pieces!==null && pieces!==undefined && pieces!=='' && numero(pieces,'Piezas')!==0;
+
+    if(esWashington && source==='devoluciones'){
+      const kg=numero(row.kilos,'Kilos');
+      if(kg<0) throw new Error('Hay kilos negativos; revisa la captura.');
+
+      if(esPedacera){
+        return {cajas:0,estimado:false,kilos_sueltos:kg};
+      }
+
+      if(tienePiezas){
+        const boxes=numero(pieces,'Piezas');
+        if(boxes<0 || !Number.isInteger(boxes)) throw new Error('Las cajas Washington deben ser enteras, sin valores negativos.');
+        return {cajas:boxes,estimado:false,kilos_sueltos:0};
+      }
+
+      // Compatibilidad con devoluciones históricas capturadas solo en kilos:
+      // ya no se inventan cajas equivalentes; esos kilos se consideran sueltos/pedacera.
+      if(kg>0){
+        return {cajas:0,estimado:false,kilos_sueltos:kg};
+      }
+      return {cajas:0,estimado:false,kilos_sueltos:0};
+    }
+
+    if(tienePiezas){
       const boxes=numero(pieces,'Piezas');
       if(boxes<0 || !Number.isInteger(boxes)) throw new Error('Las piezas deben ser cajas completas, sin valores negativos.');
       const rawKg=source==='notas'?row.cantidad:row.kilos;
       if(rawKg!==null && rawKg!==undefined && rawKg!==''){
         const kg=numero(rawKg,'Kilos');
         if(kg<0) throw new Error('Hay kilos negativos; revisa la captura.');
-        if(config.kg_por_caja && kg>0 && Math.abs(kg-boxes*Number(config.kg_por_caja))>Math.max(0.05,boxes*0.01)){
+        // Washington tiene peso variable: si conocemos las cajas reales, los kilos
+        // solo son información de peso y nunca deben invalidar ni recalcular las cajas.
+        if(!esWashington && config.kg_por_caja && kg>0 && Math.abs(kg-boxes*Number(config.kg_por_caja))>Math.max(0.05,boxes*0.01)){
           throw new Error('Las piezas y los kilos no coinciden con el peso por caja configurado. Confirma si son cajas completas o venta por kilos');
         }
       }
-      return {cajas:boxes,estimado:false};
+      return {cajas:boxes,estimado:false,kilos_sueltos:0};
     }
+
     const kg=numero(source==='notas'?row.cantidad:row.kilos,'Kilos');
     if(kg<0) throw new Error('Hay kilos negativos; revisa la captura.');
-    if(kg===0) return {cajas:0,estimado:false};
+    if(kg===0) return {cajas:0,estimado:false,kilos_sueltos:0};
+
+    if(esWashington){
+      throw new Error('Washington tiene peso variable: captura la cantidad real de cajas. Los kilos no se convierten a cajas.');
+    }
+
     if(!config.kg_por_caja || numero(config.kg_por_caja)<=0) throw new Error('Falta el peso por caja para convertir una salida o devolución registrada solo en kilos.');
-    return {cajas:kg/Number(config.kg_por_caja),estimado:true};
+    return {cajas:kg/Number(config.kg_por_caja),estimado:true,kilos_sueltos:0};
   }
   function calcular({marcas,inicio,entradas,notas,envios,devoluciones,configuraciones,hoy=diaMexico()}){
     const configs=new Map(configuraciones.map(c=>[normalizar(c.marca),c]));
     const base=baseCero(inicio);
-    const result=marcas.map(marca=>({marca,base:{...base},config:configs.get(normalizar(marca)),entradas:0,notas:0,envios:0,devoluciones:0,estimado:false,problemas:[],movimientos:[]}));
+    const result=marcas.map(marca=>({marca,base:{...base},config:configs.get(normalizar(marca)),entradas:0,notas:0,envios:0,devoluciones:0,kilos_sueltos:0,estimado:false,problemas:[],movimientos:[]}));
     const aliases={notas:new Map(),mostrador:new Map()}, conflicts=new Set();
     for(const item of result){
       if(item.base.error) item.problemas.push(item.base.error);
@@ -442,7 +480,11 @@ const InventarioCajas = (() => {
     for(const [source,rows] of [['notas',notas],['envios',envios],['devoluciones',devoluciones]]){
       for(const row of unicos(rows,source)){
         const aliasSource=source==='notas'?'notas':'mostrador';
-        const item=aliases[aliasSource].get(normalizar(row.producto));
+        const productoNormalizado=normalizar(row.producto);
+        let item=aliases[aliasSource].get(productoNormalizado);
+        if(!item && source==='devoluciones' && [normalizar('Washington Entera'),normalizar('Washington Pedacera')].includes(productoNormalizado)){
+          item=result.find(r=>normalizar(r.marca).includes('WASHINGTON'));
+        }
         let day;
         try{
           if(!despuesDelInicio(row,source,base,hoy)) continue;
@@ -457,8 +499,10 @@ const InventarioCajas = (() => {
         }
         try{
           const q=cantidadCajas(row,item.config,source);
-          item[source]+=q.cajas;item.estimado ||= q.estimado;
-          item.movimientos.push({id:row.id,fuente:source,fecha:day,producto:row.producto,cajas:q.cajas,estimado:q.estimado});
+          item[source]+=q.cajas;
+          item.kilos_sueltos+=Number(q.kilos_sueltos||0);
+          item.estimado ||= q.estimado;
+          item.movimientos.push({id:row.id,fuente:source,fecha:day,producto:row.producto,cajas:q.cajas,kilos_sueltos:Number(q.kilos_sueltos||0),estimado:q.estimado});
         }catch(error){item.problemas.push(error.message+' ('+row.producto+', '+day+').');}
       }
     }
@@ -708,17 +752,19 @@ const InventarioCajas = (() => {
     $('#invRevisar').textContent=brands.filter(r=>['revisar','pendiente'].includes(r.estado)).length;
     $('#invGrid').innerHTML=brands.map((r,i)=>{
       const value=r.disponible===null?'—':invNum(r.disponible);
-      const terms=[['Inicio en cero',r.base.cajas],['Entradas',r.entradas],['Envíos a mostrador',r.envios],['Ventas en notas',r.notas],['Devoluciones',r.devoluciones]];
+      const terms=[['Inicio en cero',r.base.cajas],['Entradas',r.entradas],['Envíos a mostrador',r.envios],['Ventas en notas',r.notas],['Devoluciones de cajas',r.devoluciones]];
+      if(InventarioCajas.normalizar(r.marca).includes('WASHINGTON')) terms.push(['Pedacera devuelta (kg)',r.kilos_sueltos]);
       return `<article class="inv-brand" data-state="${r.estado}">
         <div class="inv-brand-top"><h3>${invText(r.marca)}</h3><span class="inv-badge">${invLabel[r.estado]}</span></div>
         <div class="inv-value">${value}<span>${r.estimado?'cajas equivalentes':'cajas'}</span></div>
         <div class="inv-meta">Mínimo: <b>${r.config?invNum(r.config.minimo_cajas):'sin configurar'}</b> · Inicio: ${invMomento(r.base.desde)}</div>
+        ${InventarioCajas.normalizar(r.marca).includes('WASHINGTON')?`<p class="inv-note"><b>Pedacera / kilos sueltos devueltos:</b> ${invNum(r.kilos_sueltos)} kg. No cuentan como cajas enteras.</p>`:''}
         ${r.estimado?'<p class="inv-note">Incluye movimientos convertidos de kilos. No es un conteo de cajas cerradas.</p>':''}
         ${r.estado==='revisar'?'<p class="inv-problem">Las salidas superan la existencia calculada. Revisa las entradas y las salidas posteriores al inicio.</p>':''}
         ${r.problemas.map(p=>`<p class="inv-problem">${invText(p)}</p>`).join('')}
         <div class="inv-actions"><button type="button" data-config-marca="${i}" class="btn btn-ghost">${r.config?'Configurar':'Confirmar productos y mínimo'}</button>
           <details><summary>Ver cálculo</summary><dl>${terms.map(([label,num])=>`<div><dt>${label}</dt><dd>${num===undefined?'—':invNum(num)}</dd></div>`).join('')}</dl>
-          <p class="inv-note">0 + entradas − mostrador − notas + devoluciones.</p></details></div>
+          <p class="inv-note">Cajas: 0 + entradas − mostrador − notas + devoluciones enteras. Washington pedacera se controla aparte en kg.</p></details></div>
       </article>`;
     }).join('') || '<p class="muted">No hay marcas activas disponibles. Revisa el catálogo de marcas.</p>';
     const missing=$('#invPendientes');missing.hidden=!resultado.pendientes.length;
@@ -772,7 +818,7 @@ const InventarioCajas = (() => {
         leerCompleto(()=>sb.from('cajas_menudo_entrada').select('*',{count:'exact'}).gte('inventario_registrado_en',desde).gte('fecha_entrada',diaInicio).lte('fecha_entrada',hoy).order('inventario_registrado_en').order('id'),'Entradas'),
         leerCompleto(()=>sbNotasInventario.from('notas_detalle').select('id,nota_id,producto,cantidad,piezas,created_at',{count:'exact'}).gte('created_at',desde).lt('created_at',InventarioCajas.inicioUTC(hasta)).order('created_at').order('id'),'Notas'),
         leerCompleto(()=>sbMostradorInventario.from('mostrador_enviados').select('id,fecha,producto,kilos,piezas,created_at',{count:'exact'}).gte('created_at',desde).gte('fecha',diaInicio).lte('fecha',hoy).order('fecha').order('id'),'Envíos a mostrador'),
-        leerCompleto(()=>sbMostradorInventario.from('mostrador_devueltos').select('id,fecha,producto,kilos,created_at',{count:'exact'}).gte('created_at',desde).gte('fecha',diaInicio).lte('fecha',hoy).order('fecha').order('id'),'Devoluciones de mostrador')
+        leerCompleto(()=>sbMostradorInventario.from('mostrador_devueltos').select('id,fecha,producto,kilos,piezas,created_at',{count:'exact'}).gte('created_at',desde).gte('fecha',diaInicio).lte('fecha',hoy).order('fecha').order('id'),'Devoluciones de mostrador')
       ]);
       invFuente('#invFuenteEntradas',results[0].status==='fulfilled'?'Entradas: leídas':'Entradas: sin conexión',results[0].status==='fulfilled'?'ok':'error');
       invFuente('#invFuenteNotas',results[1].status==='fulfilled'?'Notas: leídas':'Notas: sin conexión',results[1].status==='fulfilled'?'ok':'error');
