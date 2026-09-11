@@ -110,10 +110,11 @@
     .inv-stale .inv-value{text-decoration:line-through;color:#64748b}
     .inv-stale .inv-brand:before{content:'LECTURA ANTERIOR';display:block;font-size:12px;font-weight:700;color:#9a3412;margin-bottom:10px}
     .inv-bottom{font-size:13px;color:#56636c;margin-top:16px;line-height:1.5}
-    #invConfigDialog{max-width:650px;width:calc(100% - 32px);max-height:90vh;overflow:auto;border:1px solid #dce4e0;border-radius:14px;padding:22px}
-    #invConfigDialog::backdrop{background:rgba(0,0,0,.45)}
-    #invConfigDialog h2{font-size:21px}#invConfigDialog textarea{min-height:120px;resize:vertical;line-height:1.5}
-    #invConfigDialog p{font-size:14px;line-height:1.5}#invConfigDialog label{font-weight:600}
+    #invConfigDialog,#invInicioDialog{max-width:650px;width:calc(100% - 32px);max-height:90vh;overflow:auto;border:1px solid #dce4e0;border-radius:14px;padding:22px}
+    #invConfigDialog::backdrop,#invInicioDialog::backdrop{background:rgba(0,0,0,.45)}
+    #invConfigDialog h2,#invInicioDialog h2{font-size:21px}#invConfigDialog textarea{min-height:120px;resize:vertical;line-height:1.5}
+    #invConfigDialog p,#invInicioDialog p{font-size:14px;line-height:1.5}#invConfigDialog label{font-weight:600}
+    .inv-inicio{padding:14px;background:#f1f7f3;border:1px solid #b8d6c2;border-radius:8px;margin:12px 0;display:flex;align-items:center;gap:14px;flex-wrap:wrap}.inv-inicio p{font-size:14px;line-height:1.5;flex:1;min-width:200px;margin:0}.inv-inicio button{width:auto;margin:0}
     .inv-dialog-actions{display:flex;gap:10px;margin-top:16px}
     button:disabled{opacity:.55;cursor:wait}
     button:focus-visible,summary:focus-visible{outline:3px solid #218856;outline-offset:3px}
@@ -132,15 +133,23 @@
     <div class="inv-head"><div><h2 id="invTitulo">Cajas disponibles en bodega</h2><p>Entradas, ventas directas y envíos a mostrador por marca.</p></div>
       <div class="inv-toolbar"><button type="button" id="invActualizar" class="btn btn-primary">Actualizar existencias</button><button type="button" id="invSonido" class="btn btn-ghost" aria-pressed="false">Activar sonido</button></div>
     </div>
+    <div class="inv-inicio"><p id="invInicioTexto">Comprobando si ya existe un inicio guardado…</p><button id="invInicioBoton" type="button" class="btn btn-ghost">Iniciar inventario desde cero</button></div>
     <div class="inv-sources"><span id="invFuenteEntradas">Entradas: pendiente</span><span id="invFuenteNotas">Notas: pendiente</span><span id="invFuenteMostrador">Mostrador: pendiente</span></div>
     <p id="invEstado" class="inv-status muted" role="status" aria-live="polite">Preparando inventario…</p>
-    <div id="invInstalacion" class="inv-banner" hidden><b>Preparación inicial pendiente.</b> Activa la configuración con el archivo activar_alertas_inventario.sql entregado junto a esta página. Después confirma los productos de cada marca.</div>
+    <div id="invInstalacion" class="inv-banner" hidden><b>Preparación inicial pendiente.</b> Ejecuta la versión actualizada de activar_alertas_inventario.sql, aunque ya hayas instalado la anterior. Luego configura las marcas e inicia el inventario desde cero.</div>
     <div class="inv-kpis"><div><b id="invVigiladas">—</b>Marcas</div><div><b id="invReponer">—</b>Por reponer / agotadas</div><div><b id="invRevisar">—</b>Por revisar</div></div>
     <div id="invAlerta" class="inv-banner" role="alert" hidden></div>
     <div id="invPendientes" class="inv-banner" hidden><b>Productos de cajas sin vincular</b><p>Estos registros no se incluyeron en ninguna marca. Revísalos antes de usar los saldos para decidir una compra.</p><ul id="invPendientesLista"></ul></div>
     <div id="invGrid" class="inv-grid"><p class="muted">Las existencias aparecerán después de leer las tres fuentes.</p></div>
     <p class="inv-bottom"><span id="invUltima">Sin lectura completa.</span><br>Consulta automática cada 30 segundos mientras esta página esté visible. El sonido requiere activarse en este equipo. Actualizar esta página no vuelve a descontar movimientos.</p>
   </section>
+  <dialog id="invInicioDialog" aria-labelledby="invInicioTitulo"><form id="invInicioForm">
+    <h2 id="invInicioTitulo">Empezar desde cero</h2>
+    <p>Se guardará un nuevo inicio para <b>todas las marcas y todos los equipos</b>. Las entradas, notas y envíos anteriores a ese momento quedarán fuera del cálculo.</p>
+    <p>El historial se conserva. Los cierres diarios no volverán a cargar esos saldos. Después del inicio, registra como entradas las cajas que realmente hay en bodega.</p>
+    <p id="invInicioError" class="danger" role="alert"></p>
+    <div class="inv-dialog-actions"><button type="submit" id="invConfirmarInicio" class="btn btn-primary">Iniciar en cero ahora</button><button type="button" id="invCancelarInicio" class="btn btn-ghost">Cancelar</button></div>
+  </form></dialog>
   <dialog id="invConfigDialog" aria-labelledby="invConfigTitulo"><form id="invConfigForm">
     <h2 id="invConfigTitulo">Configurar marca</h2><input type="hidden" id="invConfigMarca">
     <p id="invConfigAviso" class="muted"></p>
@@ -216,7 +225,7 @@
         </div>
       </div>
 
-      <p class="muted">Captura el conteo cuando terminen los movimientos del día. Deja en blanco las marcas que no contaste; escribe 0 únicamente si confirmaste que no queda ninguna caja.</p>
+      <p class="muted">Este cierre se conserva como control físico y no cambia el saldo del inventario nuevo. Captúralo al terminar los movimientos del día. Deja en blanco las marcas que no contaste; escribe 0 únicamente si confirmaste que no queda ninguna caja.</p>
       <table id="cfTabla">
         <thead>
           <tr>
@@ -237,7 +246,7 @@
 
   <div class="card">
     <div class="flex">
-      <h2>📊 Resumen Diario por Marca</h2>
+      <h2>📊 Histórico diario por marca</h2><p class="muted">Este resumen conserva los registros anteriores. No se usa para calcular el inventario desde cero.</p>
       <button class="btn btn-muted right" id="btnActualizarResumen" type="button">Actualizar</button>
     </div>
 
@@ -313,27 +322,18 @@ const InventarioCajas = (() => {
     }
     return out;
   }
-  function basePara(marca,conteos,hoy){
-    const rows=conteos.filter(r=>normalizar(r.marca)===normalizar(marca) && /^\d{4}-\d{2}-\d{2}$/.test(r.fecha_conteo||'') && r.fecha_conteo<hoy);
-    if(!rows.length) return {error:'Falta un conteo de cierre anterior a hoy.'};
-    const day=rows.reduce((a,r)=>r.fecha_conteo>a?r.fecha_conteo:a,'');
-    let latest=rows.filter(r=>r.fecha_conteo===day);
-    if(latest.length>1){
-      if(latest.every(r=>r.created_at && Number.isFinite(Date.parse(r.created_at)))){
-        const max=Math.max(...latest.map(r=>Date.parse(r.created_at)));
-        latest=latest.filter(r=>Date.parse(r.created_at)===max);
-      }
-      if(latest.length>1 && latest.every(r=>/^\d+$/.test(String(r.id)))){
-        const max=latest.reduce((a,r)=>BigInt(r.id)>a?BigInt(r.id):a,0n);
-        latest=latest.filter(r=>BigInt(r.id)===max);
-      }
-    }
-    try{
-      const values=latest.map(r=>numero(r.cantidad_reportada,'Conteo'));
-      if(values.some(x=>x<0 || !Number.isInteger(x))) return {error:'El conteo de cierre no es una cantidad válida de cajas.'};
-      if(new Set(values).size!==1) return {error:'Hay conteos distintos para el cierre '+day+'. Revisa cuál es correcto.'};
-      return {fecha:day,cajas:values[0]};
-    }catch(error){return {error:error.message};}
+  function baseCero(inicio){
+    if(!inicio?.id || !inicio.iniciado_en || !Number.isFinite(Date.parse(inicio.iniciado_en))) return {error:'Primero inicia el inventario desde cero.'};
+    return {cajas:0,fecha:diaMexico(inicio.iniciado_en),desde:inicio.iniciado_en};
+  }
+  function despuesDelInicio(row,source,base,hoy){
+    if(base.error) return false;
+    const timestamp=source==='entradas'?row.inventario_registrado_en:row.created_at;
+    if(!timestamp || !Number.isFinite(Date.parse(timestamp))) throw new Error('Falta la fecha y hora de registro de un movimiento.');
+    if(Date.parse(timestamp)<Date.parse(base.desde)) return false;
+    const day=source==='notas'?diaMexico(timestamp):source==='entradas'?row.fecha_entrada:row.fecha;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(day||'')) throw new Error('Hay un movimiento sin fecha válida.');
+    return day>=base.fecha && day<=hoy && diaMexico(timestamp)<=hoy;
   }
   function sugerencia(marca){
     const n=normalizar(marca);
@@ -382,10 +382,10 @@ const InventarioCajas = (() => {
     if(!config.kg_por_caja || numero(config.kg_por_caja)<=0) throw new Error('Falta el peso por caja para convertir una salida o devolución registrada solo en kilos.');
     return {cajas:kg/Number(config.kg_por_caja),estimado:true};
   }
-  function calcular({marcas,conteos,entradas,notas,envios,devoluciones,configuraciones,hoy=diaMexico()}){
+  function calcular({marcas,inicio,entradas,notas,envios,devoluciones,configuraciones,hoy=diaMexico()}){
     const configs=new Map(configuraciones.map(c=>[normalizar(c.marca),c]));
-    const cs=unicos(conteos,'conteos');
-    const result=marcas.map(marca=>({marca,base:basePara(marca,cs,hoy),config:configs.get(normalizar(marca)),entradas:0,notas:0,envios:0,devoluciones:0,estimado:false,problemas:[],movimientos:[]}));
+    const base=baseCero(inicio);
+    const result=marcas.map(marca=>({marca,base:{...base},config:configs.get(normalizar(marca)),entradas:0,notas:0,envios:0,devoluciones:0,estimado:false,problemas:[],movimientos:[]}));
     const aliases={notas:new Map(),mostrador:new Map()}, conflicts=new Set();
     for(const item of result){
       if(item.base.error) item.problemas.push(item.base.error);
@@ -402,27 +402,29 @@ const InventarioCajas = (() => {
     for(const item of conflicts) item.problemas.push('Un mismo producto está vinculado a varias marcas. Corrige la configuración.');
     const pendientes=new Map();
     const possibleBox=name=>/\b(CAJA|CAJAS|NATIONAL|CANADIAN|WASHINGTON|EXCEL|SWIFT)\b/.test(normalizar(name));
-    const firstBase=result.filter(r=>!r.base.error).map(r=>r.base.fecha).sort()[0]||hoy;
     for(const row of unicos(entradas,'entradas')){
       const item=result.find(r=>normalizar(r.marca)===normalizar(row.marca));
-      if(!item || item.base.error || row.fecha_entrada<=item.base.fecha || row.fecha_entrada>hoy) continue;
-      item.entradas+=1; // En la tabla existente cada fila es exactamente una caja.
+      if(!item) continue;
+      try{if(despuesDelInicio(row,'entradas',base,hoy)) item.entradas+=1;}
+      catch(error){item.problemas.push(error.message);}
+      // Una fila sigue siendo una caja; la hora de registro excluye todo lo anterior al inicio.
     }
     for(const [source,rows] of [['notas',notas],['envios',envios],['devoluciones',devoluciones]]){
       for(const row of unicos(rows,source)){
         const aliasSource=source==='notas'?'notas':'mostrador';
         const item=aliases[aliasSource].get(normalizar(row.producto));
         let day;
-        try{if(source==='notas' && !row.created_at) throw new Error('Fecha faltante');day=source==='notas'?diaMexico(row.created_at):row.fecha;if(!/^\d{4}-\d{2}-\d{2}$/.test(day||'')) throw new Error('Fecha inválida');}
-        catch(error){if(item)item.problemas.push('Hay un movimiento sin fecha válida.');continue;}
+        try{
+          if(!despuesDelInicio(row,source,base,hoy)) continue;
+          day=source==='notas'?diaMexico(row.created_at):row.fecha;
+        }catch(error){if(item)item.problemas.push(error.message);continue;}
         if(!item){
-          if(day>firstBase && day<=hoy && possibleBox(row.producto)){
+          if(possibleBox(row.producto)){
             const key=aliasSource+'|'+normalizar(row.producto);
             const prev=pendientes.get(key)||{fuente:aliasSource,producto:row.producto,registros:0};prev.registros++;pendientes.set(key,prev);
           }
           continue;
         }
-        if(item.base.error || day<=item.base.fecha || day>hoy) continue;
         try{
           const q=cantidadCajas(row,item.config,source);
           item[source]+=q.cajas;item.estimado ||= q.estimado;
@@ -439,7 +441,7 @@ const InventarioCajas = (() => {
     }
     return {marcas:result,pendientes:[...pendientes.values()]};
   }
-  return {normalizar,numero,diaMexico,siguienteDia,inicioUTC,unicos,basePara,sugerencia,validarConfig,cantidadCajas,calcular};
+  return {normalizar,numero,diaMexico,siguienteDia,inicioUTC,unicos,baseCero,despuesDelInicio,sugerencia,validarConfig,cantidadCajas,calcular};
 })();
 // END INVENTARIO_ENGINE
 
@@ -490,12 +492,15 @@ const InventarioCajas = (() => {
   cfFecha.value = todayISO();
 
   const TABLA_CONFIG_INVENTARIO='cajas_menudo_inventario_config';
+  const TABLA_INICIO_INVENTARIO='cajas_menudo_inventario_inicios';
+  let inventarioInicio=null,inventarioIniciando=false;
   let inventarioMarcas=[], inventarioConfiguraciones=[], inventarioUltimo=null, inventarioOcupado=false;
   let inventarioSonido=false, inventarioAudio=null, inventarioAlertasPrevias=new Map();
   let inventarioTimer=null, inventarioLeyendo=false;
   const invText = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const invNum = value => Number(value).toLocaleString('es-MX',{maximumFractionDigits:2});
   const invFecha = value => value ? value.split('-').reverse().join('/') : '—';
+  const invMomento = value => value ? new Date(value).toLocaleString('es-MX',{timeZone:'America/Mexico_City',dateStyle:'short',timeStyle:'medium'}) : 'pendiente';
   const invLabel = {normal:'Disponible',bajo:'Reponer',agotado:'Agotado',revisar:'Revisar saldo',pendiente:'Pendiente'};
 
   async function leerCompleto(makeQuery,fuente){
@@ -538,17 +543,17 @@ const InventarioCajas = (() => {
     $('#invRevisar').textContent=brands.filter(r=>['revisar','pendiente'].includes(r.estado)).length;
     $('#invGrid').innerHTML=brands.map((r,i)=>{
       const value=r.disponible===null?'—':invNum(r.disponible);
-      const terms=[['Conteo base',r.base.cajas],['Entradas',r.entradas],['Envíos a mostrador',r.envios],['Ventas en notas',r.notas],['Devoluciones',r.devoluciones]];
+      const terms=[['Inicio en cero',r.base.cajas],['Entradas',r.entradas],['Envíos a mostrador',r.envios],['Ventas en notas',r.notas],['Devoluciones',r.devoluciones]];
       return `<article class="inv-brand" data-state="${r.estado}">
         <div class="inv-brand-top"><h3>${invText(r.marca)}</h3><span class="inv-badge">${invLabel[r.estado]}</span></div>
         <div class="inv-value">${value}<span>${r.estimado?'cajas equivalentes':'cajas'}</span></div>
-        <div class="inv-meta">Mínimo: <b>${r.config?invNum(r.config.minimo_cajas):'sin configurar'}</b> · Cierre base: ${invFecha(r.base.fecha)}</div>
+        <div class="inv-meta">Mínimo: <b>${r.config?invNum(r.config.minimo_cajas):'sin configurar'}</b> · Inicio: ${invMomento(r.base.desde)}</div>
         ${r.estimado?'<p class="inv-note">Incluye movimientos convertidos de kilos. No es un conteo de cajas cerradas.</p>':''}
-        ${r.estado==='revisar'?'<p class="inv-problem">Las salidas superan la existencia calculada. Revisa entradas, productos y conteo.</p>':''}
+        ${r.estado==='revisar'?'<p class="inv-problem">Las salidas superan la existencia calculada. Revisa las entradas y las salidas posteriores al inicio.</p>':''}
         ${r.problemas.map(p=>`<p class="inv-problem">${invText(p)}</p>`).join('')}
         <div class="inv-actions"><button type="button" data-config-marca="${i}" class="btn btn-ghost">${r.config?'Configurar':'Confirmar productos y mínimo'}</button>
           <details><summary>Ver cálculo</summary><dl>${terms.map(([label,num])=>`<div><dt>${label}</dt><dd>${num===undefined?'—':invNum(num)}</dd></div>`).join('')}</dl>
-          <p class="inv-note">Base + entradas − mostrador − notas + devoluciones.</p></details></div>
+          <p class="inv-note">0 + entradas − mostrador − notas + devoluciones.</p></details></div>
       </article>`;
     }).join('') || '<p class="muted">No hay marcas activas disponibles. Revisa el catálogo de marcas.</p>';
     const missing=$('#invPendientes');missing.hidden=!resultado.pendientes.length;
@@ -566,28 +571,40 @@ const InventarioCajas = (() => {
     if(inventarioSonido && changed) sonarInventario();
   }
   async function actualizarInventario(){
-    if(inventarioOcupado || !inventarioMarcas.length) return;
+    if(inventarioOcupado || inventarioIniciando || !inventarioMarcas.length) return;
     inventarioOcupado=true;inventarioLeyendo=true;
     const btn=$('#invActualizar');btn.disabled=true;
     invEstado('Consultando existencias…');
     try{
       const hoy=InventarioCajas.diaMexico();
-      const [conteos,configResult]=await Promise.all([
-        leerCompleto(()=>sb.from('cajas_menudo_conteo_diario').select('*',{count:'exact'}).lt('fecha_conteo',hoy).order('fecha_conteo',{ascending:false}).order('marca',{ascending:true}),'Conteos'),
-        leerCompleto(()=>sb.from(TABLA_CONFIG_INVENTARIO).select('*',{count:'exact'}).order('marca'),'Configuración').then(data=>({data,error:null}),error=>({data:[],error}))
+      const initial=await Promise.allSettled([
+        leerCompleto(()=>sb.from(TABLA_INICIO_INVENTARIO).select('id,iniciado_en',{count:'exact'}).order('iniciado_en',{ascending:false}).order('id',{ascending:false}),'Inicio del inventario'),
+        leerCompleto(()=>sb.from(TABLA_CONFIG_INVENTARIO).select('*',{count:'exact'}).order('marca'),'Configuración')
       ]);
-      const configError=configResult.error;
-      if(configError && !['42P01','PGRST205','PGRST204'].includes(configError.code)) throw configError;
-      inventarioConfiguraciones=configResult.data;
-      $('#invInstalacion').hidden=!configError;
-      const fechas=inventarioMarcas.map(m=>InventarioCajas.basePara(m,conteos,hoy)).filter(b=>!b.error).map(b=>b.fecha).sort();
-      const desde=fechas.length?InventarioCajas.siguienteDia(fechas[0]):hoy;
+      const installError=initial.find(r=>r.status==='rejected' && ['42P01','PGRST205','PGRST204','42703'].includes(r.reason.code));
+      $('#invInstalacion').hidden=!installError;
+      const initialError=initial.find(r=>r.status==='rejected');if(initialError) throw initialError.reason;
+      const nextInicio=initial[0].value[0]||null;
+      if(inventarioInicio?.id!==nextInicio?.id){inventarioAlertasPrevias.clear();inventarioUltimo=null;$('#invGrid').innerHTML='';$('#invAlerta').hidden=true;}
+      inventarioInicio=nextInicio;
+      inventarioConfiguraciones=initial[1].value;
+      $('#invInicioTexto').textContent=inventarioInicio?'Inicio guardado: '+invMomento(inventarioInicio.iniciado_en)+'. Solo se cuentan movimientos registrados desde ese momento.':'Inicia desde cero antes de capturar las cajas que realmente hay en bodega.';
+      $('#invInicioBoton').textContent=inventarioInicio?'Crear otro inicio en cero':'Iniciar inventario desde cero';
+      if(!inventarioInicio){
+        const empty=InventarioCajas.calcular({marcas:inventarioMarcas,inicio:null,entradas:[],notas:[],envios:[],devoluciones:[],configuraciones:inventarioConfiguraciones,hoy});
+        pintarInventario(empty);$('#invGrid').classList.remove('inv-stale');
+        $('#invUltima').textContent='Inicio pendiente.';
+        invFuente('#invFuenteEntradas','Entradas: esperando inicio');invFuente('#invFuenteNotas','Notas: esperando inicio');invFuente('#invFuenteMostrador','Mostrador: esperando inicio');
+        invEstado('Listo para iniciar desde cero. Los datos históricos no se cargaron.');return;
+      }
+      const desde=inventarioInicio.iniciado_en;
+      const diaInicio=InventarioCajas.diaMexico(desde);
       const hasta=InventarioCajas.siguienteDia(hoy);
       const results=await Promise.allSettled([
-        leerCompleto(()=>sb.from('cajas_menudo_entrada').select('*',{count:'exact'}).gte('fecha_entrada',desde).lte('fecha_entrada',hoy).order('fecha_entrada').order('id'),'Entradas'),
-        leerCompleto(()=>sbNotasInventario.from('notas_detalle').select('id,nota_id,producto,cantidad,piezas,created_at',{count:'exact'}).gte('created_at',InventarioCajas.inicioUTC(desde)).lt('created_at',InventarioCajas.inicioUTC(hasta)).order('created_at').order('id'),'Notas'),
-        leerCompleto(()=>sbMostradorInventario.from('mostrador_enviados').select('id,fecha,producto,kilos,piezas',{count:'exact'}).gte('fecha',desde).lte('fecha',hoy).order('fecha').order('id'),'Envíos a mostrador'),
-        leerCompleto(()=>sbMostradorInventario.from('mostrador_devueltos').select('id,fecha,producto,kilos',{count:'exact'}).gte('fecha',desde).lte('fecha',hoy).order('fecha').order('id'),'Devoluciones de mostrador')
+        leerCompleto(()=>sb.from('cajas_menudo_entrada').select('*',{count:'exact'}).gte('inventario_registrado_en',desde).gte('fecha_entrada',diaInicio).lte('fecha_entrada',hoy).order('inventario_registrado_en').order('id'),'Entradas'),
+        leerCompleto(()=>sbNotasInventario.from('notas_detalle').select('id,nota_id,producto,cantidad,piezas,created_at',{count:'exact'}).gte('created_at',desde).lt('created_at',InventarioCajas.inicioUTC(hasta)).order('created_at').order('id'),'Notas'),
+        leerCompleto(()=>sbMostradorInventario.from('mostrador_enviados').select('id,fecha,producto,kilos,piezas,created_at',{count:'exact'}).gte('created_at',desde).gte('fecha',diaInicio).lte('fecha',hoy).order('fecha').order('id'),'Envíos a mostrador'),
+        leerCompleto(()=>sbMostradorInventario.from('mostrador_devueltos').select('id,fecha,producto,kilos,created_at',{count:'exact'}).gte('created_at',desde).gte('fecha',diaInicio).lte('fecha',hoy).order('fecha').order('id'),'Devoluciones de mostrador')
       ]);
       invFuente('#invFuenteEntradas',results[0].status==='fulfilled'?'Entradas: leídas':'Entradas: sin conexión',results[0].status==='fulfilled'?'ok':'error');
       invFuente('#invFuenteNotas',results[1].status==='fulfilled'?'Notas: leídas':'Notas: sin conexión',results[1].status==='fulfilled'?'ok':'error');
@@ -595,17 +612,38 @@ const InventarioCajas = (() => {
       invFuente('#invFuenteMostrador',mostradorOk?'Mostrador: leído':'Mostrador: lectura incompleta',mostradorOk?'ok':'error');
       const failed=results.find(r=>r.status==='rejected');if(failed) throw failed.reason;
       const [entradas,notas,envios,devoluciones]=results.map(r=>r.value);
-      const result=InventarioCajas.calcular({marcas:inventarioMarcas,conteos,entradas,notas,envios,devoluciones,configuraciones:inventarioConfiguraciones,hoy});
+      const result=InventarioCajas.calcular({marcas:inventarioMarcas,inicio:inventarioInicio,entradas,notas,envios,devoluciones,configuraciones:inventarioConfiguraciones,hoy});
       pintarInventario(result);
       $('#invGrid').classList.remove('inv-stale');
       $('#invUltima').textContent='Última lectura: '+new Date().toLocaleString('es-MX',{timeZone:'America/Mexico_City',dateStyle:'short',timeStyle:'medium'});
-      invEstado(configError?'Activa la configuración para vincular productos y alertas.':result.pendientes.length?'Hay productos de cajas sin vincular; los saldos pueden estar incompletos.':result.marcas.some(r=>r.estado==='pendiente')?'Completa los datos pendientes para calcular todas las marcas.':'Existencias actualizadas.',configError||result.pendientes.length||result.marcas.some(r=>r.estado==='pendiente')?'muted':'ok');
+      invEstado(result.pendientes.length?'Hay productos de cajas sin vincular; los saldos pueden estar incompletos.':result.marcas.some(r=>r.estado==='pendiente')?'Completa los datos pendientes para calcular todas las marcas.':'Existencias actualizadas.',result.pendientes.length||result.marcas.some(r=>r.estado==='pendiente')?'muted':'ok');
     }catch(error){
       console.error('Inventario:',error);
+      if(['42P01','PGRST205','PGRST204','42703'].includes(error.code)) $('#invInstalacion').hidden=false;
       $('#invGrid').classList.add('inv-stale');
       $('#invAlerta').hidden=true;$('#invReponer').textContent='—';$('#invRevisar').textContent='—';
       invEstado('Sin actualizar. '+errMsg(error)+(inventarioUltimo?' Se conserva la última lectura; no la tomes como saldo actual.':' No se muestran existencias sin una lectura completa.'),'danger');
     }finally{inventarioOcupado=false;inventarioLeyendo=false;btn.disabled=false;}
+  }
+  function abrirInicioCero(){
+    if(inventarioOcupado || inventarioIniciando){invEstado('Espera a que termine la lectura actual.');return;}
+    $('#invInicioError').textContent='';
+    $('#invInicioDialog').showModal();
+  }
+  async function guardarInicioCero(event){
+    event.preventDefault();if(inventarioOcupado || inventarioIniciando)return;
+    inventarioIniciando=true;const btn=$('#invConfirmarInicio');btn.disabled=true;
+    try{
+      // El servidor fija la hora. Insertar un nuevo inicio no borra ni modifica movimientos.
+      const {data,error}=await sb.from(TABLA_INICIO_INVENTARIO).insert({}).select('id,iniciado_en').single();
+      if(error)throw error;
+      if(!data?.id || !data.iniciado_en)throw new Error('No se recibió la confirmación del inicio. Actualiza para revisar antes de intentarlo otra vez.');
+      inventarioInicio=data;inventarioUltimo=null;inventarioAlertasPrevias.clear();
+      $('#invGrid').innerHTML='';$('#invAlerta').hidden=true;
+      $('#invInicioDialog').close();inventarioIniciando=false;
+      await actualizarInventario();
+    }catch(error){$('#invInicioError').textContent='No se pudo confirmar el inicio. '+errMsg(error);}
+    finally{inventarioIniciando=false;btn.disabled=false;}
   }
   async function sonarInventario(){
     try{
@@ -654,6 +692,9 @@ const InventarioCajas = (() => {
     finally{btn.disabled=false;}
   }
   function iniciarInventario(){
+    $('#invInicioBoton').addEventListener('click',abrirInicioCero);
+    $('#invInicioForm').addEventListener('submit',guardarInicioCero);
+    $('#invCancelarInicio').addEventListener('click',()=>$('#invInicioDialog').close());
     $('#invActualizar').addEventListener('click',actualizarInventario);
     $('#invSonido').addEventListener('click',alternarSonido);
     $('#invGrid').addEventListener('click',e=>{const button=e.target.closest('[data-config-marca]');if(button)abrirConfig(Number(button.dataset.configMarca));});
@@ -696,6 +737,7 @@ const InventarioCajas = (() => {
   }
 
   async function guardarEntrada(){
+    if(!inventarioInicio){toast(entStatus,"Primero inicia el inventario desde cero.");return;}
     const marca = entMarca.value;
     const cantidad = Number(entCantidad.value);
     if(!marca || !Number.isInteger(cantidad) || cantidad<1 || cantidad>10000){toast(entStatus,"Revisa la marca y captura entre 1 y 10,000 cajas completas.");return;}
@@ -765,7 +807,7 @@ const InventarioCajas = (() => {
       toast(cfStatus, `❌ ${errMsg(error)}`);
       return;
     }
-    toast(cfStatus, "✅ Conteo guardado. Será la base del inventario desde el día siguiente.");
+    toast(cfStatus, "✅ Conteo guardado. Queda como control físico; no cambia el inicio en cero.");
   }
 
   async function actualizarResumen(){
