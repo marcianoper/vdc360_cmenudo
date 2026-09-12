@@ -138,7 +138,7 @@
 
   <section class="card inv-card" aria-labelledby="invTitulo">
     <div class="inv-head"><div><h2 id="invTitulo">Cajas disponibles en bodega</h2><p>Canadian, Excel, National y Washington · entradas, ventas directas y envíos a mostrador.</p></div>
-      <div class="inv-toolbar"><button type="button" id="invActualizar" class="btn btn-primary">Actualizar existencias</button><button type="button" id="invWhatsapp" class="btn btn-ghost">WhatsApp</button><span id="invWhatsappEstado" class="wa-state">Sin configurar</span><button type="button" id="invSonido" class="btn btn-ghost" aria-pressed="false">Activar sonido</button></div>
+      <div class="inv-toolbar"><button type="button" id="invActualizar" class="btn btn-primary">Actualizar existencias</button><button type="button" id="invWhatsapp" class="btn btn-ghost">WhatsApp</button><span id="invWhatsappEstado" class="wa-state">Sin configurar</span><span id="invCierreEstado" class="wa-state">Cierre 16:00: preparando…</span><button type="button" id="invSonido" class="btn btn-ghost" aria-pressed="false">Activar sonido</button></div>
     </div>
     <div class="inv-inicio"><p id="invInicioTexto">Comprobando si ya existe un inicio guardado…</p><button id="invInicioBoton" type="button" class="btn btn-ghost">Iniciar inventario desde cero</button></div>
     <div class="inv-sources"><span id="invFuenteEntradas">Entradas: pendiente</span><span id="invFuenteNotas">Notas: pendiente</span><span id="invFuenteMostrador">Mostrador: pendiente</span></div>
@@ -170,13 +170,13 @@
 
   <dialog id="invWhatsappDialog" aria-labelledby="invWhatsappTitulo"><form id="invWhatsappForm">
     <h2 id="invWhatsappTitulo">Alertas por WhatsApp</h2>
-    <p>Cuando una marca llegue o baje de su <b>límite de alerta</b>, esta página enviará un solo aviso al grupo. No repetirá el mensaje cada 30 segundos; después de reponer por encima del límite quedará lista para avisar de nuevo.</p>
+    <p>Cuando una marca llegue o baje de su <b>límite de alerta</b>, esta página enviará un solo aviso al grupo. Además, todos los días a las <b>4:00 p.m.</b> hará un cierre automático y enviará la existencia calculada de ese momento. No reinicia el inventario.</p>
     <label for="waServidor">Servidor VDC360 / OpenWA</label>
     <input id="waServidor" type="url" spellcheck="false" placeholder="http://192.168.1.84:5001/enviar-mensaje">
     <div class="wa-config-row"><div><label for="waGrupo">Grupo de WhatsApp</label><select id="waGrupo"><option value="">Selecciona un grupo…</option></select></div><button type="button" id="waCargarGrupos" class="btn btn-ghost">Cargar grupos</button></div>
     <label for="waGrupoManual">ID manual del grupo (opcional)</label>
     <input id="waGrupoManual" spellcheck="false" placeholder="120363...@g.us">
-    <label class="wa-check"><input id="waActivo" type="checkbox"> Activar alertas automáticas</label>
+    <label class="wa-check"><input id="waActivo" type="checkbox"> Activar WhatsApp automático (alertas + cierre 4:00 p.m.)</label>
     <p class="muted">El servidor de WhatsApp debe estar encendido y accesible desde este equipo. La página usa la ruta <b>/enviar-mensaje</b> con el sistema de cola que ya utiliza VDC360.</p>
     <p id="waConfigEstado" class="muted" role="status"></p>
     <div class="inv-dialog-actions"><button type="submit" id="waGuardar" class="btn btn-primary">Guardar</button><button type="button" id="waProbar" class="btn btn-muted">Probar mensaje</button><button type="button" id="waCerrar" class="btn btn-ghost">Cerrar</button></div>
@@ -599,7 +599,10 @@ const InventarioCajas = (() => {
   const WA_CONFIG_KEY='vdc360_inventario_whatsapp_v1';
   const WA_LATCH_KEY='vdc360_inventario_whatsapp_latches_v1';
   const WA_DEFAULT_SERVER='http://192.168.1.84:5001/enviar-mensaje';
+  const TABLA_CIERRES_AUTO='cajas_menudo_cierres_automaticos';
+  const CIERRE_AUTO_HORA=16;
   let waConfig={activo:false,servidor:WA_DEFAULT_SERVER,grupoId:'',grupoNombre:''};
+  let cierreTimer=null,cierreEjecutando=false;
   let waEnviando=new Set();
   const invText = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const invNum = value => Number(value).toLocaleString('es-MX',{maximumFractionDigits:2});
@@ -705,6 +708,125 @@ const InventarioCajas = (() => {
     if(!response.ok && response.status!==202) throw new Error(data.error||data.detalle||('HTTP '+response.status));
     return data;
   }
+  function partesMexico(){
+    const parts=new Intl.DateTimeFormat('en-CA',{
+      timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit',
+      hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false
+    }).formatToParts(new Date());
+    const obj={};for(const p of parts){if(p.type!=='literal')obj[p.type]=p.value;}
+    return {fecha:`${obj.year}-${obj.month}-${obj.day}`,hora:Number(obj.hour),minuto:Number(obj.minute),segundo:Number(obj.second)};
+  }
+  function fechaBonitaMexico(fecha){
+    const [y,m,d]=String(fecha||'').split('-');return y&&m&&d?`${d}/${m}/${y}`:fecha;
+  }
+  function snapshotCierreActual(){
+    if(!inventarioUltimo?.marcas?.length) return null;
+    const marcas=inventarioUltimo.marcas.map(r=>({
+      marca:r.marca,
+      cajas:(r.disponible===null||!Number.isFinite(Number(r.disponible)))?null:Number(r.disponible),
+      estado:r.estado,
+      minimo:r.config&&Number.isFinite(Number(r.config.minimo_cajas))?Number(r.config.minimo_cajas):null,
+      pedacera_kg:InventarioCajas.normalizar(r.marca).includes('WASHINGTON')?Number(r.kilos_sueltos||0):0,
+      problemas:Array.isArray(r.problemas)?r.problemas:[]
+    }));
+    return {generado_en:new Date().toISOString(),inicio_id:inventarioInicio?.id||null,marcas};
+  }
+  function mensajeCierreInventario(fecha,snapshot){
+    const orden=['NATIONAL','CANADIAN','EXCEL','WASHINGTON'];
+    const porNombre=new Map(snapshot.marcas.map(r=>[InventarioCajas.normalizar(r.marca),r]));
+    const lineas=['📦 CIERRE DE INVENTARIO CVC',`Fecha: ${fechaBonitaMexico(fecha)}`,'Hora de cierre: 4:00 p.m.',''];
+    let total=0;
+    for(const nombre of orden){
+      const r=[...snapshot.marcas].find(x=>InventarioCajas.normalizar(x.marca).includes(nombre));
+      if(!r) continue;
+      if(r.cajas===null){lineas.push(`${r.marca}: PENDIENTE / REVISAR`);}
+      else {lineas.push(`${r.marca}: ${invNum(r.cajas)} cajas`);total+=Number(r.cajas)||0;}
+      if(nombre==='WASHINGTON' && Number(r.pedacera_kg||0)>0) lineas.push(`Washington pedacera / kilos sueltos: ${invNum(r.pedacera_kg)} kg`);
+    }
+    lineas.push('',`Total cajas calculadas: ${invNum(total)}`,'✅ Cierre automático VDC360');
+    return lineas.join('\n');
+  }
+  function pintarCierreEstado(text,state=''){
+    const el=$('#invCierreEstado');if(!el)return;el.textContent=text;el.dataset.state=state;
+  }
+  async function obtenerCierreFecha(fecha){
+    const {data,error}=await sb.from(TABLA_CIERRES_AUTO).select('*').eq('fecha',fecha).maybeSingle();
+    if(error){if(['42P01','PGRST205'].includes(error.code))throw Object.assign(new Error('Falta instalar la tabla de cierre automático.'),{code:error.code});throw error;}
+    return data||null;
+  }
+  async function asegurarCierre(fecha,snapshot){
+    let actual=await obtenerCierreFecha(fecha);
+    if(actual)return actual;
+    const total=snapshot.marcas.reduce((a,r)=>a+(Number.isFinite(Number(r.cajas))?Number(r.cajas):0),0);
+    const row={fecha,hora_programada:'16:00:00',inventario:snapshot,total_cajas:total,grupo_id:waConfig.grupoId||null,estado_whatsapp:'pendiente'};
+    const {data,error}=await sb.from(TABLA_CIERRES_AUTO).insert(row).select('*').single();
+    if(error){
+      if(error.code==='23505')return await obtenerCierreFecha(fecha);
+      throw error;
+    }
+    return data;
+  }
+  async function enviarCierrePendiente(cierre){
+    if(!cierre)return false;
+    if(cierre.estado_whatsapp==='enviado')return true;
+    if(!waConfig.activo||!waConfig.grupoId||!waConfig.servidor){
+      pintarCierreEstado('Cierre 16:00: guardado · WhatsApp pendiente','');
+      return false;
+    }
+    const {data:claim,error:claimError}=await sb.from(TABLA_CIERRES_AUTO)
+      .update({estado_whatsapp:'enviando',grupo_id:waConfig.grupoId,error:null,updated_at:new Date().toISOString()})
+      .eq('id',cierre.id).in('estado_whatsapp',['pendiente','error']).select('id').maybeSingle();
+    if(claimError)throw claimError;
+    if(!claim){
+      const fresh=await obtenerCierreFecha(cierre.fecha);
+      if(fresh?.estado_whatsapp==='enviado'){pintarCierreEstado('Cierre 16:00: enviado ✅','ok');return true;}
+      return false;
+    }
+    try{
+      const snap=typeof cierre.inventario==='string'?JSON.parse(cierre.inventario):cierre.inventario;
+      await enviarWhatsappAutomatico(mensajeCierreInventario(cierre.fecha,snap));
+      const {error}=await sb.from(TABLA_CIERRES_AUTO).update({estado_whatsapp:'enviado',enviado_en:new Date().toISOString(),error:null,updated_at:new Date().toISOString()}).eq('id',cierre.id);
+      if(error)throw error;
+      pintarCierreEstado('Cierre 16:00: enviado ✅','ok');
+      return true;
+    }catch(error){
+      await sb.from(TABLA_CIERRES_AUTO).update({estado_whatsapp:'error',error:errMsg(error),updated_at:new Date().toISOString()}).eq('id',cierre.id);
+      pintarCierreEstado('Cierre 16:00: error WhatsApp','error');
+      throw error;
+    }
+  }
+  async function ejecutarCierreAutomatico(){
+    if(cierreEjecutando||!inventarioMarcas.length)return;
+    cierreEjecutando=true;
+    const mx=partesMexico();
+    try{
+      pintarCierreEstado('Cierre 16:00: actualizando inventario…','');
+      await actualizarInventario();
+      const snapshot=snapshotCierreActual();
+      if(!snapshot)throw new Error('No hay una lectura de inventario disponible para cerrar.');
+      const cierre=await asegurarCierre(mx.fecha,snapshot);
+      if(cierre.estado_whatsapp==='enviado'){pintarCierreEstado('Cierre 16:00: enviado ✅','ok');return;}
+      await enviarCierrePendiente(cierre);
+    }catch(error){
+      console.error('Cierre automático 16:00:',error);
+      pintarCierreEstado('Cierre 16:00: pendiente / error','error');
+      invEstado('El inventario sigue funcionando, pero el cierre automático de las 4:00 p.m. está pendiente: '+errMsg(error),'danger');
+    }finally{cierreEjecutando=false;}
+  }
+  async function comprobarCierreAutomatico(){
+    if(cierreEjecutando||!inventarioMarcas.length)return;
+    const mx=partesMexico();
+    if(mx.hora<CIERRE_AUTO_HORA){pintarCierreEstado('Cierre 16:00: programado','');return;}
+    try{
+      const cierre=await obtenerCierreFecha(mx.fecha);
+      if(cierre?.estado_whatsapp==='enviado'){pintarCierreEstado('Cierre 16:00: enviado ✅','ok');return;}
+      await ejecutarCierreAutomatico();
+    }catch(error){
+      pintarCierreEstado('Cierre 16:00: falta instalación','error');
+      console.error(error);
+    }
+  }
+
   async function probarWhatsapp(){
     const status=$('#waConfigEstado');const btn=$('#waProbar');btn.disabled=true;
     try{
@@ -949,9 +1071,10 @@ const InventarioCajas = (() => {
     $('#invConfigForm').addEventListener('submit',guardarConfig);
     $('#invCerrarConfig').addEventListener('click',()=>$('#invConfigDialog').close());
     inventarioTimer=setInterval(()=>{if(!document.hidden)actualizarInventario();},30000);
-    document.addEventListener('visibilitychange',()=>{if(!document.hidden)actualizarInventario();});
-    window.addEventListener('online',actualizarInventario);
-    window.addEventListener('pagehide',()=>{clearInterval(inventarioTimer);},{once:true});
+    cierreTimer=setInterval(comprobarCierreAutomatico,15000);
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden){actualizarInventario();comprobarCierreAutomatico();}});
+    window.addEventListener('online',()=>{actualizarInventario();comprobarCierreAutomatico();});
+    window.addEventListener('pagehide',()=>{clearInterval(inventarioTimer);clearInterval(cierreTimer);},{once:true});
   }
 
 
@@ -1155,6 +1278,7 @@ const InventarioCajas = (() => {
   try{
     await loadMarcas();
     await Promise.all([actualizarResumen(),actualizarInventario()]);
+    await comprobarCierreAutomatico();
   } catch(e){
     console.error(e);
     toast(entStatus, `❌ ${errMsg(e)}`);
