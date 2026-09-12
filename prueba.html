@@ -161,7 +161,7 @@
     <h2 id="invConfigTitulo">Configurar marca</h2><input type="hidden" id="invConfigMarca">
     <p id="invConfigAviso" class="muted"></p>
     <div class="row-2"><div><label for="invMinimo">Límite de alerta (cajas)</label><input type="number" id="invMinimo" min="0" step="0.001" required></div><div><label for="invKgCaja">Kilos por caja</label><input type="number" id="invKgCaja" min="0.001" step="0.001" placeholder="Confirmar peso"></div></div>
-    <p class="muted">Las piezas capturadas se toman como cajas reales. National/Canadian/Excel pueden convertir kilos con peso fijo; Washington nunca convierte kilos a cajas porque su peso es variable.</p>
+    <p class="muted">Las piezas capturadas se toman como cajas reales. National/Canadian/Excel pueden convertir kilos con peso fijo. Washington nunca convierte kilos a cajas: si un movimiento Washington viene solo en kilos, no afecta el conteo de cajas completas.</p>
     <label for="invProductosNotas">Nombres de producto en notas</label><textarea id="invProductosNotas" required spellcheck="false"></textarea>
     <label for="invProductosMostrador">Nombres de producto en mostrador</label><textarea id="invProductosMostrador" required spellcheck="false"></textarea>
     <p class="muted">Un nombre por renglón. Solo vincula presentaciones que correspondan a esta marca de cajas. Acentos, mayúsculas y guiones no cambian la coincidencia.</p>
@@ -370,8 +370,8 @@ const InventarioCajas = (() => {
   function sugerencia(marca){
     const n=normalizar(marca);
     const sets=[
-      ['NATIONAL',27.22,['Caja Menudo National','Caja Menudo National X KG','CAJA_MENUDO_NATIONAL','Caja Azul','Caja Azul Completa']],
-      ['CANADIAN',27.28,['Caja Menudo Canadian','Caja Menudo Canadian X KG','Menudo Canadian','MENUDO_CANADIAN','Caja Canadian','Caja Canadian Completa']],
+      ['NATIONAL',27.22,['Caja Menudo National','CAJA_MENUDO_NATIONAL','Caja Azul','Caja Azul Completa']],
+      ['CANADIAN',27.28,['Caja Menudo Canadian','Menudo Canadian','MENUDO_CANADIAN','Caja Canadian','Caja Canadian Completa']],
       ['WASHINGTON',null,['Caja Washington','CAJA_WASHINGTON','Caja Washington Completa','Washington Entera','Washington Pedacera']],
       ['EXCEL',27.22,['Caja Excel','CAJA_EXCEL']]
     ];
@@ -391,8 +391,22 @@ const InventarioCajas = (() => {
     }
     return true;
   }
+  const PRODUCTOS_SOLO_KG = new Set([
+    normalizar('Caja Menudo National X KG'),
+    normalizar('Caja Menudo Canadian X KG'),
+    normalizar('National X KG'),
+    normalizar('Canadian X KG')
+  ]);
+
   function cantidadCajas(row,config,source){
     const producto=normalizar(row.producto);
+    // Los productos vendidos/devueltos "X KG" son kilos sueltos.
+    // No se convierten ni directa ni indirectamente en cajas.
+    if(PRODUCTOS_SOLO_KG.has(producto)){
+      const kg=numero(source==='notas'?row.cantidad:row.kilos,'Kilos');
+      if(kg<0) throw new Error('Hay kilos negativos; revisa la captura.');
+      return {cajas:0,estimado:false,kilos_sueltos:kg,solo_kg:true};
+    }
     const marca=normalizar(config?.marca);
     const esWashington=marca.includes('WASHINGTON');
     const esPedacera=producto===normalizar('Washington Pedacera');
@@ -444,7 +458,11 @@ const InventarioCajas = (() => {
     if(kg===0) return {cajas:0,estimado:false,kilos_sueltos:0};
 
     if(esWashington){
-      throw new Error('Washington tiene peso variable: captura la cantidad real de cajas. Los kilos no se convierten a cajas.');
+      // Washington tiene peso variable. Si un movimiento viene solo en kilos
+      // (sin piezas/cajas), NO intentamos convertirlo y tampoco bloqueamos
+      // el inventario de cajas. Se considera un movimiento por kilo que no
+      // afecta el conteo de cajas completas.
+      return {cajas:0,estimado:false,kilos_sueltos:0,solo_kg:true};
     }
 
     if(!config.kg_por_caja || numero(config.kg_por_caja)<=0) throw new Error('Falta el peso por caja para convertir una salida o devolución registrada solo en kilos.');
@@ -481,6 +499,12 @@ const InventarioCajas = (() => {
       for(const row of unicos(rows,source)){
         const aliasSource=source==='notas'?'notas':'mostrador';
         const productoNormalizado=normalizar(row.producto);
+
+        // National/Canadian X KG son movimientos de kilos, no movimientos de cajas.
+        // Se ignoran por completo para la existencia de cajas, incluso si una
+        // configuración antigua todavía los tenía como alias.
+        if(PRODUCTOS_SOLO_KG.has(productoNormalizado)) continue;
+
         let item=aliases[aliasSource].get(productoNormalizado);
         if(!item && source==='devoluciones' && [normalizar('Washington Entera'),normalizar('Washington Pedacera')].includes(productoNormalizado)){
           item=result.find(r=>normalizar(r.marca).includes('WASHINGTON'));
@@ -764,7 +788,7 @@ const InventarioCajas = (() => {
         ${r.problemas.map(p=>`<p class="inv-problem">${invText(p)}</p>`).join('')}
         <div class="inv-actions"><button type="button" data-config-marca="${i}" class="btn btn-ghost">${r.config?'Configurar':'Confirmar productos y mínimo'}</button>
           <details><summary>Ver cálculo</summary><dl>${terms.map(([label,num])=>`<div><dt>${label}</dt><dd>${num===undefined?'—':invNum(num)}</dd></div>`).join('')}</dl>
-          <p class="inv-note">Cajas: 0 + entradas − mostrador − notas + devoluciones enteras. Washington pedacera se controla aparte en kg.</p></details></div>
+          <p class="inv-note">Cajas: 0 + entradas − mostrador − notas + devoluciones enteras. Washington capturado solo en kg no se convierte ni bloquea el conteo; la pedacera devuelta se controla aparte en kg.</p></details></div>
       </article>`;
     }).join('') || '<p class="muted">No hay marcas activas disponibles. Revisa el catálogo de marcas.</p>';
     const missing=$('#invPendientes');missing.hidden=!resultado.pendientes.length;
