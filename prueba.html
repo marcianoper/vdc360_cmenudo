@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <title>VDC360° – Inventario de cajas + Washington pedacera</title>
+  <title>VDC360° – Inventario de cajas v8</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root{--ink:#111;--brand:#0a7a3b;--muted:#6b7280;--bg:#f6f7f8;--card:#fff}
@@ -372,8 +372,8 @@ const InventarioCajas = (() => {
     const sets=[
       ['NATIONAL',27.22,['Caja Menudo National','CAJA_MENUDO_NATIONAL','Caja Azul','Caja Azul Completa']],
       ['CANADIAN',27.28,['Caja Menudo Canadian','Menudo Canadian','MENUDO_CANADIAN','Caja Canadian','Caja Canadian Completa']],
-      ['WASHINGTON',null,['Caja Washington','CAJA_WASHINGTON','Caja Washington Completa','Washington Entera','Washington Pedacera']],
-      ['EXCEL',27.22,['Caja Excel','CAJA_EXCEL']]
+      ['WASHINGTON',null,['Caja Washington','CAJA_WASHINGTON','Caja Washington Completa','Caja menudo washington','Cajas menudo washington','Menudo Washington','Washington Entera','Washington Pedacera']],
+      ['EXCEL',27.22,['Caja Excel','Caja de Excel','Caja menudo excel','Cajas menudo excel','Menudo Excel','CAJA_EXCEL']]
     ];
     const match=sets.find(([token])=>n.split(' ').includes(token));
     return {marca,minimo_cajas:10,kg_por_caja:match?.[1]??null,productos_notas:match?.[2]??[],productos_mostrador:match?.[2]??[]};
@@ -411,9 +411,31 @@ const InventarioCajas = (() => {
     const esWashington=marca.includes('WASHINGTON');
     const esPedacera=producto===normalizar('Washington Pedacera');
     const esEntera=producto===normalizar('Washington Entera');
+    const esWashingtonCajaNota=new Set([
+      normalizar('Caja Washington'),
+      normalizar('CAJA_WASHINGTON'),
+      normalizar('Caja Washington Completa'),
+      normalizar('Caja menudo washington'),
+      normalizar('Cajas menudo washington'),
+      normalizar('Menudo Washington')
+    ]).has(producto);
 
     const pieces=row.piezas;
     const tienePiezas=pieces!==null && pieces!==undefined && pieces!=='' && numero(pieces,'Piezas')!==0;
+
+    // En Notas, cada pesada de "Caja menudo washington" representa una caja real.
+    // Como Washington tiene peso variable, NO se divide entre un peso estándar.
+    // Si la nota trae piezas explícitas, se usan; si no, cada registro cuenta como 1 caja.
+    if(esWashington && source==='notas' && esWashingtonCajaNota){
+      const kg=numero(row.cantidad,'Kilos');
+      if(kg<0) throw new Error('Hay kilos negativos; revisa la captura.');
+      if(tienePiezas){
+        const boxes=numero(pieces,'Piezas');
+        if(boxes<0 || !Number.isInteger(boxes)) throw new Error('Las cajas Washington deben ser enteras, sin valores negativos.');
+        return {cajas:boxes,estimado:false,kilos_sueltos:0};
+      }
+      return {cajas:kg>0?1:0,estimado:false,kilos_sueltos:0};
+    }
 
     if(esWashington && source==='devoluciones'){
       const kg=numero(row.kilos,'Kilos');
@@ -478,7 +500,11 @@ const InventarioCajas = (() => {
       if(!item.config){item.problemas.push('Confirma productos y mínimo de aviso.');continue;}
       try{validarConfig(item.config);}catch(error){item.problemas.push(error.message);continue;}
       for(const [source,field] of [['notas','productos_notas'],['mostrador','productos_mostrador']]){
-        for(const name of item.config[field]){
+        // Siempre suma los alias base de VDC360 a los que estén guardados en Supabase.
+        // Así configuraciones antiguas no dejan fuera "Caja menudo washington" ni "Caja menudo excel".
+        const baseAliases=sugerencia(item.marca)[field]||[];
+        const nombres=[...new Set([...(item.config[field]||[]),...baseAliases])];
+        for(const name of nombres){
           const k=normalizar(name), existing=aliases[source].get(k);
           if(existing && existing!==item){conflicts.add(existing);conflicts.add(item);}
           else aliases[source].set(k,item);
@@ -1035,7 +1061,12 @@ const InventarioCajas = (() => {
   function abrirConfig(index){
     const marca=inventarioMarcas[index];if(!marca)return;
     const existing=inventarioConfiguraciones.find(c=>InventarioCajas.normalizar(c.marca)===InventarioCajas.normalizar(marca));
-    const c=existing||InventarioCajas.sugerencia(marca);
+    const base=InventarioCajas.sugerencia(marca);
+    const c=existing?{
+      ...existing,
+      productos_notas:[...new Set([...(existing.productos_notas||[]),...(base.productos_notas||[])])],
+      productos_mostrador:[...new Set([...(existing.productos_mostrador||[]),...(base.productos_mostrador||[])])]
+    }:base;
     $('#invConfigMarca').value=marca;$('#invConfigTitulo').textContent='Configurar '+marca;
     $('#invMinimo').value=c.minimo_cajas;$('#invKgCaja').value=c.kg_por_caja??'';
     $('#invProductosNotas').value=c.productos_notas.join('\n');$('#invProductosMostrador').value=c.productos_mostrador.join('\n');
