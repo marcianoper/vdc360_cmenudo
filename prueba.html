@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <title>VDC360° – Inventario de cajas v8</title>
+  <title>VDC360° – Inventario de cajas v9</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root{--ink:#111;--brand:#0a7a3b;--muted:#6b7280;--bg:#f6f7f8;--card:#fff}
@@ -138,7 +138,7 @@
 
   <section class="card inv-card" aria-labelledby="invTitulo">
     <div class="inv-head"><div><h2 id="invTitulo">Cajas disponibles en bodega</h2><p>Canadian, Excel, National y Washington · entradas, ventas directas y envíos a mostrador.</p></div>
-      <div class="inv-toolbar"><button type="button" id="invActualizar" class="btn btn-primary">Actualizar existencias</button><button type="button" id="invWhatsapp" class="btn btn-ghost">WhatsApp</button><span id="invWhatsappEstado" class="wa-state">Sin configurar</span><span id="invCierreEstado" class="wa-state">Cierre 16:00: preparando…</span><button type="button" id="invSonido" class="btn btn-ghost" aria-pressed="false">Activar sonido</button></div>
+      <div class="inv-toolbar"><button type="button" id="invActualizar" class="btn btn-primary">Actualizar existencias</button><button type="button" id="invWhatsapp" class="btn btn-ghost">WhatsApp</button><span id="invWhatsappEstado" class="wa-state">Vigilante: comprobando…</span><span id="invCierreEstado" class="wa-state">Cierre 16:00: preparando…</span><button type="button" id="invSonido" class="btn btn-ghost" aria-pressed="false">Activar sonido</button></div>
     </div>
     <div class="inv-inicio"><p id="invInicioTexto">Comprobando si ya existe un inicio guardado…</p><button id="invInicioBoton" type="button" class="btn btn-ghost">Iniciar inventario desde cero</button></div>
     <div class="inv-sources"><span id="invFuenteEntradas">Entradas: pendiente</span><span id="invFuenteNotas">Notas: pendiente</span><span id="invFuenteMostrador">Mostrador: pendiente</span></div>
@@ -148,7 +148,7 @@
     <div id="invAlerta" class="inv-banner" role="alert" hidden></div>
     <div id="invPendientes" class="inv-banner" hidden><b>Productos de cajas sin vincular</b><p>Estos registros no se incluyeron en ninguna marca. Revísalos antes de usar los saldos para decidir una compra.</p><ul id="invPendientesLista"></ul></div>
     <div id="invGrid" class="inv-grid"><p class="muted">Las existencias aparecerán después de leer las tres fuentes.</p></div>
-    <p class="inv-bottom"><span id="invUltima">Sin lectura completa.</span><br>Consulta automática cada 30 segundos mientras esta página esté visible. El sonido requiere activarse en este equipo. Actualizar esta página no vuelve a descontar movimientos.</p>
+    <p class="inv-bottom"><span id="invUltima">Sin lectura completa.</span><br>Consulta automática cada 30 segundos mientras esta página esté visible. Las alertas y el cierre de las 4:00 p.m. los manda el vigilante de la compu del WhatsApp, aunque esta página esté cerrada. El sonido requiere activarse en este equipo. Actualizar esta página no vuelve a descontar movimientos.</p>
   </section>
   <dialog id="invInicioDialog" aria-labelledby="invInicioTitulo"><form id="invInicioForm">
     <h2 id="invInicioTitulo">Empezar desde cero</h2>
@@ -176,7 +176,7 @@
     <div class="wa-config-row"><div><label for="waGrupo">Grupo de WhatsApp</label><select id="waGrupo"><option value="">Selecciona un grupo…</option></select></div><button type="button" id="waCargarGrupos" class="btn btn-ghost">Cargar grupos</button></div>
     <label for="waGrupoManual">ID manual del grupo (opcional)</label>
     <input id="waGrupoManual" spellcheck="false" placeholder="120363...@g.us">
-    <label class="wa-check"><input id="waActivo" type="checkbox"> Activar WhatsApp automático (alertas + cierre 4:00 p.m.)</label>
+    <label class="wa-check"><input id="waActivo" type="checkbox" disabled> Ya no se usa: las alertas y el cierre los manda el vigilante (carpeta vigilante-cajas).</label>
     <p class="muted">El servidor de WhatsApp debe estar encendido y accesible desde este equipo. La página usa la ruta <b>/enviar-mensaje</b> con el sistema de cola que ya utiliza VDC360.</p>
     <p id="waConfigEstado" class="muted" role="status"></p>
     <div class="inv-dialog-actions"><button type="submit" id="waGuardar" class="btn btn-primary">Guardar</button><button type="button" id="waProbar" class="btn btn-muted">Probar mensaje</button><button type="button" id="waCerrar" class="btn btn-ghost">Cerrar</button></div>
@@ -684,11 +684,15 @@ const InventarioCajas = (() => {
     localStorage.setItem(WA_CONFIG_KEY,JSON.stringify(waConfig));
     pintarWAEstado();
   }
-  function pintarWAEstado(tipo){
+  function pintarWAEstado(){
     const el=$('#invWhatsappEstado');if(!el)return;
-    if(tipo==='error'){el.textContent='WhatsApp: error';el.dataset.state='error';return;}
-    if(waConfig.activo&&waConfig.grupoId){el.textContent='WhatsApp: activo';el.dataset.state='ok';}
-    else {el.textContent='WhatsApp: sin activar';el.dataset.state='';}
+    const v=vigilanteUltimo;
+    if(!v){el.textContent='Vigilante: sin instalar';el.dataset.state='error';el.title='Instala la carpeta vigilante-cajas en la compu del servidor de WhatsApp.';return;}
+    if(v.sinConexion){el.textContent='Vigilante: sin conexión';el.dataset.state='error';el.title='';return;}
+    const min=(Date.now()-Date.parse(v.ultimo_latido))/60000;
+    if(!Number.isFinite(min)||min>3){el.textContent='Vigilante: SIN SEÑAL';el.dataset.state='error';el.title='Último aviso de vida: '+invMomento(v.ultimo_latido)+'. Revisa que la compu del WhatsApp esté prendida.';return;}
+    if(v.ultimo_error){el.textContent='Vigilante: con error';el.dataset.state='error';el.title=v.ultimo_error;return;}
+    el.textContent='Vigilante: activo';el.dataset.state='ok';el.title='Equipo: '+(v.equipo||'—')+' · '+invMomento(v.ultimo_latido);
   }
   function waBaseURL(){
     const value=String(waConfig.servidor||WA_DEFAULT_SERVER).trim().replace(/\/+$/,'');
@@ -840,17 +844,28 @@ const InventarioCajas = (() => {
     }finally{cierreEjecutando=false;}
   }
   async function comprobarCierreAutomatico(){
-    if(cierreEjecutando||!inventarioMarcas.length)return;
+    // v9: solo muestra el estado. El cierre lo guarda y lo manda el vigilante.
+    comprobarVigilante();
     const mx=partesMexico();
     if(mx.hora<CIERRE_AUTO_HORA){pintarCierreEstado('Cierre 16:00: programado','');return;}
     try{
       const cierre=await obtenerCierreFecha(mx.fecha);
       if(cierre?.estado_whatsapp==='enviado'){pintarCierreEstado('Cierre 16:00: enviado ✅','ok');return;}
-      await ejecutarCierreAutomatico();
+      if(cierre?.estado_whatsapp==='error'){pintarCierreEstado('Cierre 16:00: error, el vigilante reintenta','error');return;}
+      pintarCierreEstado('Cierre 16:00: pendiente (lo manda el vigilante)','');
     }catch(error){
-      pintarCierreEstado('Cierre 16:00: falta instalación','error');
+      pintarCierreEstado('Cierre 16:00: sin conexión','error');
       console.error(error);
     }
+  }
+  let vigilanteUltimo=null;
+  async function comprobarVigilante(){
+    try{
+      const {data,error}=await sb.from('vigilante_estado').select('ultimo_latido,ultimo_error,equipo').eq('id','cajas').maybeSingle();
+      if(error)throw error;
+      vigilanteUltimo=data||null;
+    }catch(error){console.error('Vigilante:',error);vigilanteUltimo={sinConexion:true};}
+    pintarWAEstado();
   }
 
   async function probarWhatsapp(){
@@ -870,6 +885,9 @@ const InventarioCajas = (() => {
   }
   function guardarWALatches(value){localStorage.setItem(WA_LATCH_KEY,JSON.stringify(value));}
   async function procesarAlertasWhatsapp(brands){
+    // v9: las alertas las manda el vigilante (vigilante.js) desde la compu del servidor de WhatsApp.
+    // La página ya no envía para que nunca salgan dobles.
+    return;
     if(!waConfig.activo||!waConfig.grupoId||!waConfig.servidor||!inventarioInicio?.id)return;
     const latches=leerWALatches();
     let changed=false;
